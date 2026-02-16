@@ -1,19 +1,55 @@
-# FBEditor v5.0.0 — FreeBASIC IDE with Visual Form Designer
+# FBEditor v5.1.0 — FreeBASIC IDE with Visual Form Designer
 
-A production-grade Integrated Development Environment for [FreeBASIC](https://www.freebasic.net/), built with VB.NET and featuring a **Window9 Visual Form Designer**, integrated GDB debugger, AI coding assistant, code outline explorer, and a full-featured Scintilla-powered editor.
+A production-grade Integrated Development Environment for [FreeBASIC](https://www.freebasic.net/), built with VB.NET and featuring a **Window9 Visual Form Designer** with multi-form support, integrated GDB debugger, AI coding assistant, code outline explorer, and a full-featured Scintilla-powered editor.
 
 ![.NET Framework 4.8](https://img.shields.io/badge/.NET_Framework-4.8-purple)
 ![Platform](https://img.shields.io/badge/Platform-Windows-blue)
-![Version](https://img.shields.io/badge/Version-5.0.0-green)
+![Version](https://img.shields.io/badge/Version-5.1.0-green)
 ![License](https://img.shields.io/badge/License-Permissive-orange)
 
 ---
 
-## What's New in v5.0.0
+## What's New in v5.1.0
 
-### Window9 Visual Form Designer (NEW)
+### Multi-Form Support (NEW)
 
-FBEditor v5.0.0 introduces a full WYSIWYG visual form designer for the [Window9](https://users.freebasic-portal.de/tjf/Projekte/Window9/doc/Window9.html) GUI library — the first of its kind for FreeBASIC. Design your GUI visually, then generate complete FreeBASIC + Window9 source code with a single click.
+FBEditor v5.1.0 adds full multi-form project support to the Visual Form Designer. Design applications with a main window and multiple child/dialog forms — all within a single project, with unified code generation.
+
+**Multi-Form Features:**
+- **Form selector dropdown** in the toolbar — switch between forms instantly
+- **+Form / -Form buttons** — add child/dialog forms or remove them (main form cannot be removed)
+- **Per-form properties** — each form has its own VarName, FormType, HideOnClose, StartHidden, title, size, and resize settings
+- **Unified gadget IDs** — all gadgets across all forms share a single `Enum GadgetID` with no collisions
+- **Per-form resize handlers** — main form gets `size_change()`, child forms get `resize_formN()`
+- **Multi-form event loop** — `EventHwnd` dispatch for resize and close events, child forms hide on close instead of ending the app
+- **Child forms start hidden** — show them with `HideWindow(handle, 0)` from a button click
+- **Backward-compatible .w9form format** — old single-form files auto-upgrade to multi-form projects on load
+
+**Generated Code Pattern (follows Window9 best practices):**
+```freebasic
+' Child forms created first (hidden)
+hAboutForm = OpenWindow("About", 100, 50, 400, 300)
+HideWindow(hAboutForm, 1)
+
+' Main form created after
+hMainForm = OpenWindow("My App", 100, 50, 800, 600)
+
+' Event loop dispatches by EventHwnd
+Do
+    Select Case WaitEvent()
+    Case EventClose
+        If EventHwnd() = hAboutForm Then
+            HideWindow(hAboutForm, 1)  ' Hide child
+        Else
+            End                         ' Close main = exit
+        End If
+    End Select
+Loop
+```
+
+### Window9 Visual Form Designer (v5.0.0)
+
+FBEditor introduced a full WYSIWYG visual form designer for the [Window9](https://users.freebasic-portal.de/tjf/Projekte/Window9/doc/Window9.html) GUI library — the first of its kind for FreeBASIC. Design your GUI visually, then generate complete FreeBASIC + Window9 source code with a single click.
 
 **Designer Features:**
 - Drag-and-drop placement of 23 gadget types on a visual canvas
@@ -67,6 +103,7 @@ FBEditor v5.0.0 introduces a full WYSIWYG visual form designer for the [Window9]
 - **Editor:** HasVScroll, HasHScroll
 - **TreeView/ListView:** HasLines, HasButtons, HasCheckBoxes, FullRowSelect
 - **Events:** OnClickEvent, OnChangeEvent, OnDoubleClickEvent
+- **Multi-Form:** FormType, VarName, HideOnClose, StartHidden
 - **Advanced:** Style, ExStyle, Tag
 
 **Menu Designer:**
@@ -78,6 +115,7 @@ FBEditor v5.0.0 introduces a full WYSIWYG visual form designer for the [Window9]
 
 **Code Generator — Complete Application Output:**
 - Generates complete, compilable FreeBASIC + Window9 source code
+- Multi-form projects generate a single `.bas` file with all forms, unified enums, and multi-window event dispatch
 - Proportional resize system with ScaleX/ScaleY macros
 - Linux compatibility defines for cross-platform builds
 - Gadget enum IDs with customizable start values
@@ -95,7 +133,7 @@ FBEditor v5.0.0 introduces a full WYSIWYG visual form designer for the [Window9]
 - Editor/StringInput text change handlers
 - ScrollBar/TrackBar/SpinBox value change handlers
 - ListView/TreeView double-click handlers
-- Window resize and close events
+- Window resize and close events (multi-form dispatch by EventHwnd)
 - Menu item click handlers
 - Timer events
 
@@ -206,7 +244,7 @@ Built-in AI coding assistant powered by Claude (Anthropic API):
 
 ### From Installer
 
-1. Download the latest `FBEditor_v5.0_Pro_Setup.exe` from [Releases](https://github.com/ronen-blumberg/FBEditor/releases)
+1. Download the latest `FBEditor_v5.1_Pro_Setup.exe` from [Releases](https://github.com/ronen-blumberg/FBEditor/releases)
 2. Run the installer — it will check for .NET Framework 4.8 and guide you through setup
 3. FBEditor installs to `C:\Program Files (x86)\FBEditor` by default
 4. Optional: associate `.bas`, `.bi`, and `.w9form` files with FBEditor during installation
@@ -250,11 +288,12 @@ Built-in AI coding assistant powered by Claude (Anthropic API):
 2. **Select a gadget** from the Toolbox panel on the left (Button, Editor, ComboBox, etc.)
 3. **Draw on the canvas** — click and drag to place the gadget at your desired size and position
 4. **Configure properties** — use the Property Panel on the right to set text, font, colors, events, and behavior
-5. **Design menus** — click "Menus..." in the toolbar to open the Menu Designer
-6. **Set events** — check OnClickEvent, OnChangeEvent, or OnDoubleClickEvent in the Events category to generate handler stubs
-7. **Generate code** — click "Generate Code" to produce a complete FreeBASIC + Window9 source file
-8. **Save your design** — click "Save Design" to save as a `.w9form` file for later editing
-9. **Compile** — the generated code compiles directly with `fbc -s gui yourfile.bas` (requires Window9 library)
+5. **Add child forms** — click **+Form** in the toolbar to add dialog/child windows; switch between forms using the form selector dropdown
+6. **Design menus** — click "Menus..." in the toolbar to open the Menu Designer
+7. **Set events** — check OnClickEvent, OnChangeEvent, or OnDoubleClickEvent in the Events category to generate handler stubs
+8. **Generate code** — click "Generate Code" to produce a complete FreeBASIC + Window9 source file (all forms in one file)
+9. **Save your design** — click "Save Design" to save as a `.w9form` file for later editing
+10. **Compile** — the generated code compiles directly with `fbc -s gui yourfile.bas` (requires Window9 library)
 
 ### Setting Up AI Chat
 
@@ -342,18 +381,18 @@ FBEditor/
 ├── Program.vb                          Entry point
 ├── Forms/
 │   ├── MainForm.vb                     Main IDE window (2,066 lines)
-│   ├── FormDesignerPanel.vb            Form designer host panel with toolbar (542 lines)
+│   ├── FormDesignerPanel.vb            Form designer host panel with multi-form toolbar (662 lines)
 │   ├── W9DesignerCanvas.vb             Visual design surface / canvas (1,321 lines)
 │   ├── W9ToolboxPanel.vb               Gadget toolbox with 23 types (195 lines)
-│   ├── W9PropertyPanel.vb              Property grid with 30+ properties (855 lines)
+│   ├── W9PropertyPanel.vb              Property grid with 30+ properties + multi-form (901 lines)
 │   ├── W9MenuDesigner.vb               Menu bar visual editor (277 lines)
 │   ├── FindReplaceForm.vb              Find & Replace dialog (277 lines)
 │   ├── GoToLineForm.vb                 Go To Line dialog (69 lines)
 │   ├── BuildOptionsForm.vb             Compiler options dialog (554 lines)
 │   └── AboutForm.vb                    About dialog (139 lines)
 ├── Modules/
-│   ├── W9CodeGenerator.vb              FreeBASIC + Window9 code generator (881 lines)
-│   ├── W9GadgetInfo.vb                 Gadget type definitions & registry (423 lines)
+│   ├── W9CodeGenerator.vb              FreeBASIC + Window9 code generator with multi-form (1,258 lines)
+│   ├── W9GadgetInfo.vb                 Gadget types, registry & W9FormProject model (533 lines)
 │   ├── GDBDebugger.vb                  GDB/MI protocol integration (943 lines)
 │   ├── BuildSystem.vb                  Compiler invocation & output parsing (262 lines)
 │   ├── CodeOutline.vb                  Source code parser for outline tree (434 lines)
@@ -361,7 +400,7 @@ FBEditor/
 │   ├── SyntaxConfig.vb                 FreeBASIC keywords & syntax definitions (166 lines)
 │   ├── ThemeManager.vb                 Dark/Light theme engine (358 lines)
 │   ├── AIChatManager.vb                Claude API integration (287 lines)
-│   ├── ProjectManager.vb               Project file management (166 lines)
+│   ├── ProjectManager.vb               Project & multi-form save/load (219 lines)
 │   ├── AppSettings.vb                  Application-wide settings (380 lines)
 │   └── UserSettings.vb                 Per-user persistent settings (488 lines)
 ├── Resources/
@@ -372,7 +411,7 @@ FBEditor/
     └── FBEditor_Setup.iss              Inno Setup installer script
 ```
 
-**Total: ~11,500 lines of VB.NET**
+**Total: ~12,185 lines of VB.NET**
 
 ---
 
@@ -387,6 +426,13 @@ FBEditor/
 ---
 
 ## Version History
+
+### v5.1.0 (February 2026)
+- **NEW:** Multi-form support — design main window + child/dialog forms in a single project
+- **NEW:** Form selector dropdown with +Form / -Form buttons in toolbar
+- **NEW:** Per-form properties: VarName, FormType, HideOnClose, StartHidden
+- **NEW:** Multi-form code generator with per-form resize handlers and EventHwnd dispatch
+- **NEW:** Backward-compatible .w9form save/load (old single-form files auto-upgrade)
 
 ### v5.0.0 (February 2026)
 - **NEW:** Window9 Visual Form Designer with 23 gadget types

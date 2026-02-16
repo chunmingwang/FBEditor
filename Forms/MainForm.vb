@@ -90,7 +90,7 @@ Imports ScintillaNET
         Private _initialized As Boolean = False
         Private _findReplaceForm As FindReplaceForm = Nothing  ' BUG FIX: reuse form, prevent leak
 
-        ' ---- Visual Form Designer (v5.0.0) ----
+        ' ---- Visual Form Designer (v5.1.0) ----
         Private _designerPanel As FormDesignerPanel = Nothing
         Private _pnlEditorArea As Panel = Nothing     ' Holds scintilla + cboOpenFiles
         Private _isDesignView As Boolean = False
@@ -491,7 +491,7 @@ Imports ScintillaNET
                                              End Sub)
             mnuView.DropDownItems.Add(New ToolStripSeparator())
 
-            ' ---- Window9 Visual Designer (v5.0.0) ----
+            ' ---- Window9 Visual Designer (v5.1.0) ----
             _mnuViewDesigner = New ToolStripMenuItem("&Window9 Form Designer") With {.ShortcutKeys = Keys.F7}
             AddHandler _mnuViewDesigner.Click, Sub(s, e) ToggleDesignView()
             mnuView.DropDownItems.Add(_mnuViewDesigner)
@@ -508,7 +508,7 @@ Imports ScintillaNET
             AddMenu(mnuBuild, "&Syntax Check Only", Sub(s, e) DoSyntaxCheck())
             mnuBuild.DropDownItems.Add(New ToolStripSeparator())
 
-            ' Project Type submenu (v5.0.0)
+            ' Project Type submenu (v5.1.0)
             _mnuProjectType = New ToolStripMenuItem("&Project Type")
             Dim mnuProjConsole = New ToolStripMenuItem("&Console Application") With {.Checked = True, .Tag = ProjectType.ConsoleApp}
             Dim mnuProjGUI = New ToolStripMenuItem("&GUI Application (-s gui)") With {.Tag = ProjectType.GUIApp}
@@ -1966,7 +1966,7 @@ Imports ScintillaNET
         End Sub
 #End Region
 
-#Region "Window9 Visual Form Designer (v5.0.0)"
+#Region "Window9 Visual Form Designer (v5.1.0)"
 
         ''' <summary>Toggle between Code view and Design view (like VS F7).</summary>
         Private Sub ToggleDesignView()

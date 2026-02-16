@@ -1,4 +1,5 @@
 Imports System.Drawing
+Imports System.Linq
 
 ''' <summary>
 ''' Data model for Window9 visual form designer.
@@ -186,6 +187,12 @@ End Class
 ''' Complete form design model — represents one Window9 form with all its gadgets and menus.
 ''' This is what gets serialized/deserialized and used by the code generator.
 ''' </summary>
+''' <summary>Form type — main window or child/dialog window.</summary>
+Public Enum W9FormType
+    MainForm = 0
+    ChildForm = 1
+End Enum
+
 Public Class W9FormDesign
     Public FormTitle As String = "My Window9 Application"
     Public FormX As Integer = 100
@@ -197,6 +204,12 @@ Public Class W9FormDesign
     Public BaseWidth As Integer = 800
     Public BaseHeight As Integer = 600
     Public ProportionalResize As Boolean = True
+
+    ' Multi-form support
+    Public FormType As W9FormType = W9FormType.MainForm
+    Public VarName As String = "hMainForm"
+    Public HideOnClose As Boolean = False        ' True = hidewindow on close instead of End
+    Public StartHidden As Boolean = False         ' True = hide immediately after creation
 
     Public Gadgets As New List(Of W9GadgetInstance)()
     Public MenuItems As New List(Of W9MenuItemInfo)()
@@ -246,6 +259,103 @@ Public Class W9FormDesign
             g.IsSelected = False
         Next
     End Sub
+End Class
+
+''' <summary>
+''' A multi-form project containing one or more W9FormDesign instances.
+''' The first form is always the main form. Additional forms are child/dialog forms.
+''' All gadget IDs are unique across the entire project.
+''' </summary>
+Public Class W9FormProject
+    Public Forms As New List(Of W9FormDesign)()
+
+    Public Sub New()
+        ' Start with a default main form
+        Dim mainForm As New W9FormDesign() With {
+            .FormType = W9FormType.MainForm,
+            .VarName = "hMainForm",
+            .FormTitle = "My Window9 Application"
+        }
+        Forms.Add(mainForm)
+    End Sub
+
+    ''' <summary>The main (first) form. Not serialized — computed from Forms list.</summary>
+    <Newtonsoft.Json.JsonIgnore>
+    Public ReadOnly Property MainForm As W9FormDesign
+        Get
+            If Forms.Count = 0 Then Return Nothing
+            Return Forms(0)
+        End Get
+    End Property
+
+    ''' <summary>Add a new child form with a unique variable name.</summary>
+    Public Function AddChildForm(title As String) As W9FormDesign
+        Dim idx = Forms.Count
+        Dim varName = "hForm" & idx
+        ' Make sure var name is unique
+        While Forms.Any(Function(f) f.VarName = varName)
+            idx += 1
+            varName = "hForm" & idx
+        End While
+
+        Dim child As New W9FormDesign() With {
+            .FormType = W9FormType.ChildForm,
+            .VarName = varName,
+            .FormTitle = title,
+            .FormWidth = 400,
+            .FormHeight = 300,
+            .BaseWidth = 400,
+            .BaseHeight = 300,
+            .HideOnClose = True,
+            .StartHidden = True,
+            .CenterOnScreen = False,
+            .HasKeyboardShortcut = False
+        }
+        ' Offset gadget IDs so they don't clash
+        child.GadgetEnumStart = GetNextAvailableEnumStart()
+        Forms.Add(child)
+        Return child
+    End Function
+
+    ''' <summary>Remove a child form (cannot remove the main form).</summary>
+    Public Function RemoveForm(form As W9FormDesign) As Boolean
+        If form Is Nothing OrElse form.FormType = W9FormType.MainForm Then Return False
+        Return Forms.Remove(form)
+    End Function
+
+    ''' <summary>Get the next available gadget ID across all forms.</summary>
+    Public Function GetNextGlobalGadgetID() As Integer
+        Dim maxId = 100
+        For Each f In Forms
+            For Each g In f.Gadgets
+                If g.ID > maxId Then maxId = g.ID
+            Next
+        Next
+        Return maxId + 1
+    End Function
+
+    ''' <summary>Get a safe enum start value that won't overlap.</summary>
+    Private Function GetNextAvailableEnumStart() As Integer
+        Dim maxStart = 100
+        For Each f In Forms
+            Dim formMax = f.GadgetEnumStart
+            For Each g In f.Gadgets
+                If g.ID >= formMax Then formMax = g.ID + 1
+            Next
+            If formMax > maxStart Then maxStart = formMax
+        Next
+        ' Round up to next 100
+        Return CInt(Math.Ceiling(maxStart / 100.0) * 100)
+    End Function
+
+    ''' <summary>Get all gadgets across all forms (for unified enum).</summary>
+    Public Function AllGadgets() As List(Of W9GadgetInstance)
+        Dim all As New List(Of W9GadgetInstance)()
+        For Each f In Forms
+            all.AddRange(f.Gadgets)
+        Next
+        Return all
+    End Function
 End Class
 
 ''' <summary>
@@ -419,5 +529,16 @@ Public Module W9GadgetRegistry
             Case W9GadgetType.HyperLink : Return "giHyperLink" & index
             Case Else : Return "giGadget" & index
         End Select
+    End Function
+
+    ''' <summary>Generate a unique enum name that doesn't conflict with any existing names across all forms.</summary>
+    Public Function GenerateUniqueEnumName(gt As W9GadgetType, existingNames As HashSet(Of String)) As String
+        Dim i = 1
+        Dim candidate As String
+        Do
+            candidate = GenerateEnumName(gt, i)
+            If Not existingNames.Contains(candidate) Then Return candidate
+            i += 1
+        Loop
     End Function
 End Module

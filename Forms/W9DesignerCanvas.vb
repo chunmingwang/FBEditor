@@ -13,6 +13,7 @@ Public Class W9DesignerCanvas
 
     ' ---- Data ----
     Private _formDesign As W9FormDesign
+    Private _project As W9FormProject
     Private _selectedGadget As W9GadgetInstance = Nothing
     Private _multiSelection As New List(Of W9GadgetInstance)()
 
@@ -112,6 +113,16 @@ Public Class W9DesignerCanvas
             _selectedGadget = Nothing
             _multiSelection.Clear()
             Invalidate()
+        End Set
+    End Property
+
+    ''' <summary>The parent project — used to ensure unique enum names across all forms.</summary>
+    Public Property Project As W9FormProject
+        Get
+            Return _project
+        End Get
+        Set(value As W9FormProject)
+            _project = value
         End Set
     End Property
 
@@ -856,7 +867,7 @@ Public Class W9DesignerCanvas
     Public Sub AddGadgetFromToolbox(gadgetType As W9GadgetType, rect As Rectangle)
         PushUndo()
         Dim tdef = W9GadgetRegistry.GetTypeDef(gadgetType)
-        Dim idx = _formDesign.Gadgets.Count + 1
+        Dim enumName = GetUniqueEnumName(gadgetType)
 
         ' Choose default font based on gadget type
         Dim defaultFontName = "Consolas"
@@ -879,13 +890,13 @@ Public Class W9DesignerCanvas
         Dim gad As New W9GadgetInstance() With {
             .ID = _formDesign.GetNextGadgetID(),
             .GadgetType = gadgetType,
-            .EnumName = W9GadgetRegistry.GenerateEnumName(gadgetType, idx),
+            .EnumName = enumName,
             .Text = If(tdef IsNot Nothing, tdef.DefaultText, ""),
             .X = rect.X,
             .Y = rect.Y,
             .W = rect.Width,
             .H = rect.Height,
-            .ZOrder = idx,
+            .ZOrder = _formDesign.Gadgets.Count + 1,
             .FontName = defaultFontName,
             .FontSize = defaultFontSize
         }
@@ -1136,8 +1147,7 @@ Public Class W9DesignerCanvas
         pasted.X += 20
         pasted.Y += 20
         pasted.ID = _formDesign.GetNextGadgetID()
-        Dim idx = _formDesign.Gadgets.Count + 1
-        pasted.EnumName = W9GadgetRegistry.GenerateEnumName(pasted.GadgetType, idx)
+        pasted.EnumName = GetUniqueEnumName(pasted.GadgetType)
         _formDesign.Gadgets.Add(pasted)
         SelectedGadget = pasted
         RaiseEvent GadgetAdded(pasted)
@@ -1152,8 +1162,7 @@ Public Class W9DesignerCanvas
         duped.X += _gridSize * 2
         duped.Y += _gridSize * 2
         duped.ID = _formDesign.GetNextGadgetID()
-        Dim idx = _formDesign.Gadgets.Count + 1
-        duped.EnumName = W9GadgetRegistry.GenerateEnumName(duped.GadgetType, idx)
+        duped.EnumName = GetUniqueEnumName(duped.GadgetType)
         _formDesign.Gadgets.Add(duped)
         SelectedGadget = duped
         RaiseEvent GadgetAdded(duped)
@@ -1317,5 +1326,31 @@ Public Class W9DesignerCanvas
         RaiseEvent GadgetSelected(_selectedGadget)
         Invalidate()
     End Sub
+
+    ''' <summary>
+    ''' Generate a unique enum name across ALL forms in the project (not just the current form).
+    ''' This prevents duplicate enum names like giLabel1 appearing in multiple child forms.
+    ''' </summary>
+    Private Function GetUniqueEnumName(gadgetType As W9GadgetType) As String
+        ' Collect all existing enum names across all forms in the project
+        Dim existingNames As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+        If _project IsNot Nothing Then
+            For Each f In _project.Forms
+                For Each g In f.Gadgets
+                    If Not String.IsNullOrEmpty(g.EnumName) Then
+                        existingNames.Add(g.EnumName)
+                    End If
+                Next
+            Next
+        Else
+            ' Fallback: just check current form
+            For Each g In _formDesign.Gadgets
+                If Not String.IsNullOrEmpty(g.EnumName) Then
+                    existingNames.Add(g.EnumName)
+                End If
+            Next
+        End If
+        Return W9GadgetRegistry.GenerateUniqueEnumName(gadgetType, existingNames)
+    End Function
 
 End Class

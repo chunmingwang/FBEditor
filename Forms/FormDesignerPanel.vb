@@ -1,6 +1,7 @@
 Imports System.Drawing
 Imports System.Windows.Forms
 Imports System.IO
+Imports System.Linq
 
 ''' <summary>
 ''' The main form designer panel that replaces the code editor area when in
@@ -31,7 +32,12 @@ Public Class FormDesignerPanel
 
     ' ---- Data ----
     Private _formDesign As W9FormDesign
+    Private _project As W9FormProject
     Private _isDirty As Boolean = False
+
+    ' ---- Form selector ----
+    Private _formSelector As ComboBox
+    Private _formSelectorPanel As Panel
 
     ' ---- Events for MainForm integration ----
     Public Event DesignDirtyChanged(isDirty As Boolean)
@@ -42,7 +48,8 @@ Public Class FormDesignerPanel
     ' =========================================================================
     Public Sub New()
         Me.Dock = DockStyle.Fill
-        _formDesign = New W9FormDesign()
+        _project = New W9FormProject()
+        _formDesign = _project.MainForm
         InitializeLayout()
         WireEvents()
     End Sub
@@ -159,6 +166,7 @@ Public Class FormDesignerPanel
         _properties.SetFormDesign(_formDesign)
         _properties.ShowFormProperties()
         _canvas.FormDesign = _formDesign
+        _canvas.Project = _project
 
         Me.ResumeLayout(True)
     End Sub
@@ -268,6 +276,30 @@ Public Class FormDesignerPanel
         AddHandler btnPreview.Click, AddressOf OnPreviewCode
         ts.Items.Add(btnPreview)
 
+        ts.Items.Add(New ToolStripSeparator())
+
+        ' === Multi-form management ===
+        ts.Items.Add(New ToolStripLabel("Form:") With {.Font = New Font("Segoe UI", 9, FontStyle.Bold)})
+
+        _formSelector = New ComboBox() With {
+            .DropDownStyle = ComboBoxStyle.DropDownList,
+            .Width = 180,
+            .Font = New Font("Segoe UI", 9)
+        }
+        AddHandler _formSelector.SelectedIndexChanged, AddressOf OnFormSelectorChanged
+        Dim tsHost = New ToolStripControlHost(_formSelector)
+        ts.Items.Add(tsHost)
+
+        Dim btnAddForm = New ToolStripButton("+Form") With {.ToolTipText = "Add a new child/dialog form"}
+        AddHandler btnAddForm.Click, AddressOf OnAddForm
+        ts.Items.Add(btnAddForm)
+
+        Dim btnRemoveForm = New ToolStripButton("-Form") With {.ToolTipText = "Remove current child form (cannot remove main form)"}
+        AddHandler btnRemoveForm.Click, AddressOf OnRemoveForm
+        ts.Items.Add(btnRemoveForm)
+
+        RefreshFormSelector()
+
         Return ts
     End Function
 
@@ -350,33 +382,36 @@ Public Class FormDesignerPanel
     End Sub
 
     Private Sub OnGenerateCode(sender As Object, e As EventArgs)
-        Dim code = W9CodeGenerator.GenerateCode(_formDesign)
+        Dim code = W9CodeGenerator.GenerateMultiFormCode(_project)
 
         ' Ask user where to save
         Using dlg As New SaveFileDialog()
             dlg.Title = "Save Generated Window9 Code"
             dlg.Filter = "FreeBASIC Files (*.bas)|*.bas|All Files (*.*)|*.*"
             dlg.DefaultExt = "bas"
-            dlg.FileName = SanitizeFilename(_formDesign.FormTitle) & ".bas"
+            dlg.FileName = SanitizeFilename(_project.MainForm.FormTitle) & ".bas"
 
             If dlg.ShowDialog(Me.FindForm()) = DialogResult.OK Then
                 File.WriteAllText(dlg.FileName, code)
+                Dim totalGadgets = _project.AllGadgets().Count
+                Dim totalMenus = _project.Forms.Sum(Function(f) f.MenuItems.Count)
                 SetStatus("Code generated and saved: " & dlg.FileName)
                 MessageBox.Show("Code generated successfully!" & vbCrLf & vbCrLf &
                                 "File: " & dlg.FileName & vbCrLf &
-                                "Gadgets: " & _formDesign.Gadgets.Count & vbCrLf &
-                                "Menus: " & _formDesign.MenuItems.Count,
+                                "Forms: " & _project.Forms.Count & vbCrLf &
+                                "Gadgets: " & totalGadgets & vbCrLf &
+                                "Menus: " & totalMenus,
                                 "Code Generated", MessageBoxButtons.OK, MessageBoxIcon.Information)
             End If
         End Using
     End Sub
 
     Private Sub OnPreviewCode(sender As Object, e As EventArgs)
-        Dim code = W9CodeGenerator.GenerateCode(_formDesign)
+        Dim code = W9CodeGenerator.GenerateMultiFormCode(_project)
 
         ' Show in a preview window
         Dim preview As New Form() With {
-            .Text = "Generated Code Preview",
+            .Text = "Generated Code Preview — " & _project.Forms.Count & " form(s)",
             .Size = New Size(800, 600),
             .StartPosition = FormStartPosition.CenterParent,
             .Font = New Font("Segoe UI", 9)
@@ -413,13 +448,13 @@ Public Class FormDesignerPanel
             dlg.Title = "Save Form Design"
             dlg.Filter = "Window9 Form Design (*.w9form)|*.w9form|All Files (*.*)|*.*"
             dlg.DefaultExt = "w9form"
-            dlg.FileName = SanitizeFilename(_formDesign.FormTitle) & ".w9form"
+            dlg.FileName = SanitizeFilename(_project.MainForm.FormTitle) & ".w9form"
 
             If dlg.ShowDialog(Me.FindForm()) = DialogResult.OK Then
-                If ProjectManager.SaveFormDesign(_formDesign, dlg.FileName) Then
+                If ProjectManager.SaveFormProject(_project, dlg.FileName) Then
                     _isDirty = False
                     RaiseEvent DesignDirtyChanged(False)
-                    SetStatus("Design saved: " & dlg.FileName)
+                    SetStatus("Design saved: " & dlg.FileName & " (" & _project.Forms.Count & " form(s))")
                 Else
                     MessageBox.Show("Failed to save design file.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
                 End If
@@ -439,10 +474,10 @@ Public Class FormDesignerPanel
             dlg.Filter = "Window9 Form Design (*.w9form)|*.w9form|All Files (*.*)|*.*"
 
             If dlg.ShowDialog(Me.FindForm()) = DialogResult.OK Then
-                Dim loaded = ProjectManager.LoadFormDesign(dlg.FileName)
+                Dim loaded = ProjectManager.LoadFormProject(dlg.FileName)
                 If loaded IsNot Nothing Then
-                    LoadDesign(loaded)
-                    SetStatus("Design loaded: " & dlg.FileName)
+                    LoadProject(loaded)
+                    SetStatus("Design loaded: " & dlg.FileName & " (" & _project.Forms.Count & " form(s))")
                 Else
                     MessageBox.Show("Failed to load design file.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
                 End If
@@ -454,27 +489,113 @@ Public Class FormDesignerPanel
     ' Public methods for MainForm integration
     ' =========================================================================
 
-    ''' <summary>Load a form design into the designer.</summary>
+    ''' <summary>Load a form design into the designer (single form — wraps in project).</summary>
     Public Sub LoadDesign(design As W9FormDesign)
-        _formDesign = If(design, New W9FormDesign())
-        _canvas.FormDesign = _formDesign
-        _properties.SetFormDesign(_formDesign)
-        _properties.ShowFormProperties()
-        UpdateCanvasSize()
+        If design Is Nothing Then design = New W9FormDesign()
+        ' Wrap single form into a project
+        _project = New W9FormProject()
+        _project.Forms.Clear()
+        _project.Forms.Add(design)
+        SwitchToForm(design)
         _isDirty = False
         RaiseEvent DesignDirtyChanged(False)
+        RefreshFormSelector()
+    End Sub
+
+    ''' <summary>Load a multi-form project into the designer.</summary>
+    Public Sub LoadProject(proj As W9FormProject)
+        _project = If(proj, New W9FormProject())
+        If _project.Forms.Count = 0 Then
+            _project.Forms.Add(New W9FormDesign())
+        End If
+        SwitchToForm(_project.Forms(0))
+        _isDirty = False
+        RaiseEvent DesignDirtyChanged(False)
+        RefreshFormSelector()
     End Sub
 
     ''' <summary>Create a new empty form design.</summary>
     Public Sub NewDesign()
-        LoadDesign(New W9FormDesign())
+        _project = New W9FormProject()
+        _formDesign = _project.MainForm
+        SwitchToForm(_formDesign)
+        RefreshFormSelector()
         SetStatus("New form design created")
     End Sub
 
     ''' <summary>Get the generated code as string (for inserting into editor).</summary>
     Public Function GetGeneratedCode() As String
-        Return W9CodeGenerator.GenerateCode(_formDesign)
+        Return W9CodeGenerator.GenerateMultiFormCode(_project)
     End Function
+
+    ''' <summary>Get the current project.</summary>
+    Public ReadOnly Property Project As W9FormProject
+        Get
+            Return _project
+        End Get
+    End Property
+
+    ' =========================================================================
+    ' Multi-form management
+    ' =========================================================================
+
+    Private Sub RefreshFormSelector()
+        If _formSelector Is Nothing Then Return
+        RemoveHandler _formSelector.SelectedIndexChanged, AddressOf OnFormSelectorChanged
+        _formSelector.Items.Clear()
+        For Each f In _project.Forms
+            Dim label = If(f.FormType = W9FormType.MainForm, "[Main] ", "[Child] ")
+            _formSelector.Items.Add(label & f.VarName & " — " & f.FormTitle)
+        Next
+        Dim idx = _project.Forms.IndexOf(_formDesign)
+        If idx >= 0 Then _formSelector.SelectedIndex = idx
+        AddHandler _formSelector.SelectedIndexChanged, AddressOf OnFormSelectorChanged
+    End Sub
+
+    Private Sub OnFormSelectorChanged(sender As Object, e As EventArgs)
+        Dim idx = _formSelector.SelectedIndex
+        If idx >= 0 AndAlso idx < _project.Forms.Count Then
+            SwitchToForm(_project.Forms(idx))
+        End If
+    End Sub
+
+    Private Sub SwitchToForm(form As W9FormDesign)
+        _formDesign = form
+        _canvas.FormDesign = _formDesign
+        _canvas.Project = _project
+        _properties.SetFormDesign(_formDesign)
+        _properties.ShowFormProperties()
+        UpdateCanvasSize()
+        _canvas.Invalidate()
+    End Sub
+
+    Private Sub OnAddForm(sender As Object, e As EventArgs)
+        Dim title = InputBox("Enter title for the new child form:", "Add Child Form", "Dialog")
+        If String.IsNullOrEmpty(title) Then Return
+        Dim child = _project.AddChildForm(title)
+        RefreshFormSelector()
+        SwitchToForm(child)
+        _formSelector.SelectedIndex = _project.Forms.Count - 1
+        MarkDirty()
+        SetStatus("Added child form: " & child.VarName & " — " & title)
+    End Sub
+
+    Private Sub OnRemoveForm(sender As Object, e As EventArgs)
+        If _formDesign Is Nothing OrElse _formDesign.FormType = W9FormType.MainForm Then
+            MessageBox.Show("Cannot remove the main form.", "Remove Form",
+                           MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Return
+        End If
+        Dim result = MessageBox.Show("Remove form """ & _formDesign.FormTitle & """ and all its gadgets?",
+                                     "Remove Form", MessageBoxButtons.YesNo, MessageBoxIcon.Warning)
+        If result = DialogResult.No Then Return
+        _project.RemoveForm(_formDesign)
+        SwitchToForm(_project.MainForm)
+        RefreshFormSelector()
+        _formSelector.SelectedIndex = 0
+        MarkDirty()
+        SetStatus("Form removed")
+    End Sub
 
     ''' <summary>Apply theme (dark/light) to all designer sub-panels.</summary>
     Public Sub ApplyTheme(isDark As Boolean)
@@ -505,7 +626,8 @@ Public Class FormDesignerPanel
         _canvas.Size = New Size(_formDesign.FormWidth + 40, _formDesign.FormHeight + 40)
         If _titleBarLabel IsNot Nothing Then
             _titleBarLabel.Size = New Size(_formDesign.FormWidth, 26)
-            _titleBarLabel.Text = "  " & _formDesign.FormTitle
+            Dim typeLabel = If(_formDesign.FormType = W9FormType.MainForm, "[Main] ", "[Child] ")
+            _titleBarLabel.Text = "  " & typeLabel & _formDesign.FormTitle & "  (" & _formDesign.VarName & ")"
         End If
     End Sub
 

@@ -161,7 +161,7 @@ Imports System.Text
             If Not String.IsNullOrEmpty(Build.ExtraCompilerOpts?.Trim()) Then sb.Append(" " & Build.ExtraCompilerOpts.Trim())
             If Not String.IsNullOrEmpty(Build.ExtraLinkerOpts?.Trim()) Then sb.Append($" -Wl ""{Build.ExtraLinkerOpts.Trim()}""")
 
-            ' Window9 project flags (v5.0.0)
+            ' Window9 project flags (v5.1.0)
             If ProjectManager.IsWindow9Project Then
                 Dim w9Flags = ProjectManager.GetProjectCompilerFlags()
                 If Not String.IsNullOrEmpty(w9Flags) Then

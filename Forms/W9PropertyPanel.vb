@@ -106,7 +106,9 @@ Public Class W9PropertyPanel
     Public Sub RefreshGadgetCombo()
         _gadgetCombo.Items.Clear()
         _gadgetCombo.Items.Add(New GadgetComboItem() With {
-            .DisplayText = "(Form) - " & If(_formDesign IsNot Nothing, _formDesign.FormTitle, ""),
+            .DisplayText = If(_formDesign IsNot Nothing,
+                If(_formDesign.FormType = W9FormType.MainForm, "(Main Form) ", "(Child Form) ") & _formDesign.VarName & " — " & _formDesign.FormTitle,
+                "(Form)"),
             .Gadget = Nothing
         })
         If _formDesign IsNot Nothing Then
@@ -720,6 +722,50 @@ Public Class FormPropertyWrapper
         End Get
         Set(value As Color)
             _f.FormColor = value
+        End Set
+    End Property
+
+    <System.ComponentModel.Category("Multi-Form"),
+     System.ComponentModel.Description("Form type: MainForm = primary window, ChildForm = dialog/secondary window.")>
+    Public ReadOnly Property FormType As W9FormType
+        Get
+            Return _f.FormType
+        End Get
+    End Property
+
+    <System.ComponentModel.Category("Multi-Form"),
+     System.ComponentModel.Description("HWND variable name in generated code (e.g. hMainForm, hAboutForm).")>
+    Public Property VarName As String
+        Get
+            Return _f.VarName
+        End Get
+        Set(value As String)
+            If Not String.IsNullOrWhiteSpace(value) AndAlso
+               System.Text.RegularExpressions.Regex.IsMatch(value, "^[a-zA-Z_][a-zA-Z0-9_]*$") Then
+                _f.VarName = value
+            End If
+        End Set
+    End Property
+
+    <System.ComponentModel.Category("Multi-Form"),
+     System.ComponentModel.Description("If True, closing this form hides it instead of ending the application. Typical for child/dialog forms.")>
+    Public Property HideOnClose As Boolean
+        Get
+            Return _f.HideOnClose
+        End Get
+        Set(value As Boolean)
+            _f.HideOnClose = value
+        End Set
+    End Property
+
+    <System.ComponentModel.Category("Multi-Form"),
+     System.ComponentModel.Description("If True, form starts hidden. Show it with HideWindow(handle, 0).")>
+    Public Property StartHidden As Boolean
+        Get
+            Return _f.StartHidden
+        End Get
+        Set(value As Boolean)
+            _f.StartHidden = value
         End Set
     End Property
 

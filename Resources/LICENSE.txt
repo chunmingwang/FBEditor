@@ -1,4 +1,4 @@
-FBEditor v5.0.0 Pro - FreeBASIC IDE with Visual Form Designer & GDB Debugger
+FBEditor v5.1.0 Pro - FreeBASIC IDE with Visual Form Designer & GDB Debugger
 Copyright (c) 2026 Ronen Blumberg. All rights reserved.
 
 LICENSE AGREEMENT

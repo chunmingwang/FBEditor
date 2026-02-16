@@ -163,4 +163,57 @@ Public Module ProjectManager
         End Try
     End Function
 
+    ''' <summary>Save a multi-form project to a .w9form JSON file.</summary>
+    Public Function SaveFormProject(proj As W9FormProject, filePath As String) As Boolean
+        Try
+            Dim json = JsonConvert.SerializeObject(proj, Formatting.Indented)
+            File.WriteAllText(filePath, json)
+            Return True
+        Catch ex As Exception
+            Return False
+        End Try
+    End Function
+
+    ''' <summary>
+    ''' Load a multi-form project from a .w9form JSON file.
+    ''' Backward compatible: if the file contains a single W9FormDesign (old format),
+    ''' it wraps it into a W9FormProject automatically.
+    ''' </summary>
+    Public Function LoadFormProject(filePath As String) As W9FormProject
+        Try
+            If Not File.Exists(filePath) Then Return Nothing
+            Dim json = File.ReadAllText(filePath)
+
+            ' Try loading as project first (new format)
+            Try
+                ' Use Replace mode so the constructor's default Forms list gets replaced
+                ' instead of appended to by the deserializer
+                Dim settings As New JsonSerializerSettings() With {
+                    .ObjectCreationHandling = ObjectCreationHandling.Replace
+                }
+                Dim proj = JsonConvert.DeserializeObject(Of W9FormProject)(json, settings)
+                If proj IsNot Nothing AndAlso proj.Forms IsNot Nothing AndAlso proj.Forms.Count > 0 Then
+                    Return proj
+                End If
+            Catch
+                ' Not a project format — try single form
+            End Try
+
+            ' Fall back to single form (old format) → wrap in project
+            Dim singleForm = JsonConvert.DeserializeObject(Of W9FormDesign)(json)
+            If singleForm IsNot Nothing Then
+                Dim proj As New W9FormProject()
+                proj.Forms.Clear()
+                singleForm.FormType = W9FormType.MainForm
+                If String.IsNullOrEmpty(singleForm.VarName) Then singleForm.VarName = "hMainForm"
+                proj.Forms.Add(singleForm)
+                Return proj
+            End If
+
+            Return Nothing
+        Catch ex As Exception
+            Return Nothing
+        End Try
+    End Function
+
 End Module
