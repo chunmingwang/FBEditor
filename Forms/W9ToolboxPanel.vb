@@ -59,6 +59,8 @@ Public Class W9ToolboxPanel
 
         AddHandler _listView.MouseDoubleClick, AddressOf OnToolboxDoubleClick
         AddHandler _listView.ItemActivate, AddressOf OnToolboxItemActivate
+        AddHandler _listView.MouseDown, AddressOf OnToolboxMouseDown
+        AddHandler _listView.MouseMove, AddressOf OnToolboxMouseMove
 
         Me.Controls.Add(_listView)
         ' Ensure listview is on top of header
@@ -138,6 +140,29 @@ Public Class W9ToolboxPanel
         End Using
         Return bmp
     End Function
+
+    ' =========================================================================
+    ' Drag-and-drop from toolbox to canvas
+    ' =========================================================================
+    Private _dragStartPoint As Point = Point.Empty
+
+    Private Sub OnToolboxMouseDown(sender As Object, e As MouseEventArgs)
+        If e.Button = MouseButtons.Left Then _dragStartPoint = e.Location
+    End Sub
+
+    Private Sub OnToolboxMouseMove(sender As Object, e As MouseEventArgs)
+        If e.Button <> MouseButtons.Left OrElse _dragStartPoint = Point.Empty Then Return
+        ' Check drag threshold
+        If Math.Abs(e.X - _dragStartPoint.X) < SystemInformation.DragSize.Width AndAlso
+           Math.Abs(e.Y - _dragStartPoint.Y) < SystemInformation.DragSize.Height Then Return
+
+        Dim item = _listView.GetItemAt(e.X, e.Y)
+        If item Is Nothing OrElse item.Tag Is Nothing Then Return
+
+        Dim gt = DirectCast(item.Tag, W9GadgetType)
+        _listView.DoDragDrop(gt, DragDropEffects.Copy)
+        _dragStartPoint = Point.Empty
+    End Sub
 
     ' =========================================================================
     ' Events

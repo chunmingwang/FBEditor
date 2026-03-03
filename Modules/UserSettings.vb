@@ -485,4 +485,17 @@ Public NotInheritable Class UserSettings
             Me("GDBPath") = value
         End Set
     End Property
+
+    ' ===== Debugger =====
+
+    <UserScopedSetting()>
+    <DefaultSettingValue("")>
+    Public Property WatchExpressions As String
+        Get
+            Return CStr(Me("WatchExpressions"))
+        End Get
+        Set(value As String)
+            Me("WatchExpressions") = value
+        End Set
+    End Property
 End Class

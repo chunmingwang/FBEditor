@@ -51,6 +51,7 @@ Public Class GDBDebugger
     Private _argsLines As New List(Of String)()
     Private _localsCollected As Boolean = False
     Private _argsCollected As Boolean = False
+    Private _localsLock As New Object()  ' Synchronizes token assignment/checking across threads
 
     ' ---- Data classes ----
     Public Class BreakpointInfo
@@ -206,7 +207,7 @@ Public Class GDBDebugger
                             Dim line = _process.StandardError.ReadLine()
                             If line IsNot Nothing Then FireOnUI(Sub() RaiseEvent DebugOutput("[GDB ERR] " & line))
                         End While
-                    Catch : End Try
+                    Catch ex As Exception : DiagnosticsLogger.LogError("GDBDebugger", "Stderr reader error", ex) : End Try
                 End Sub)
             errThread.IsBackground = True : errThread.Name = "GDB_Err" : errThread.Start()
 
@@ -236,7 +237,7 @@ Public Class GDBDebugger
                 SendCmdDirect("-gdb-exit")
                 If Not _process.WaitForExit(2000) Then _process.Kill()
             End If
-        Catch : End Try
+        Catch ex As Exception : DiagnosticsLogger.LogError("GDBDebugger", "StopDebugging cleanup error", ex) : End Try
         CleanupProcess()
         _isRunning = False : _isPaused = False : _currentFile = "" : _currentLine = 0
         FireOnUI(Sub()
@@ -385,14 +386,16 @@ Public Class GDBDebugger
         If Not _isRunning OrElse Not _isPaused Then Return
         ' Use text-based "info locals" and "info args" instead of MI -stack-list-locals
         ' because FreeBASIC debug info works much better with text commands
-        SyncLock _localsLines
-            _localsLines.Clear()
-            _argsLines.Clear()
-            _localsCollected = False
-            _argsCollected = False
+        SyncLock _localsLock
+            SyncLock _localsLines
+                _localsLines.Clear()
+                _argsLines.Clear()
+                _localsCollected = False
+                _argsCollected = False
+            End SyncLock
+            _localsToken = SendCmd("-interpreter-exec console ""info locals""")
+            _argsToken = SendCmd("-interpreter-exec console ""info args""")
         End SyncLock
-        _localsToken = SendCmd("-interpreter-exec console ""info locals""")
-        _argsToken = SendCmd("-interpreter-exec console ""info args""")
     End Sub
 
     Public Sub RequestCallStack()
@@ -426,7 +429,8 @@ Public Class GDBDebugger
             _process.StandardInput.WriteLine(fullCmd)
             _process.StandardInput.Flush()
             Return token
-        Catch
+        Catch ex As Exception
+            DiagnosticsLogger.LogError("GDBDebugger", $"SendCmd failed: {command}", ex)
             Return -1
         End Try
     End Function
@@ -436,7 +440,7 @@ Public Class GDBDebugger
         Try
             _process.StandardInput.WriteLine(command)
             _process.StandardInput.Flush()
-        Catch : End Try
+        Catch ex As Exception : DiagnosticsLogger.LogError("GDBDebugger", "SendCmdDirect failed", ex) : End Try
     End Sub
 
     Private Sub SendAllBreakpoints()
@@ -458,7 +462,7 @@ Public Class GDBDebugger
                 If line Is Nothing Then Exit While
                 ProcessLine(line)
             End While
-        Catch : End Try
+        Catch ex As Exception : DiagnosticsLogger.LogError("GDBDebugger", "GDB output reader error", ex) : End Try
         If _isRunning Then
             _isRunning = False : _isPaused = False
             FireOnUI(Sub() RaiseEvent DebugStopped())
@@ -587,22 +591,32 @@ Public Class GDBDebugger
     Private Sub ParseResult(data As String, token As Integer)
         Dim s = data.TrimStart("^"c)
         If s.StartsWith("done") Then
-            ' Check if this is a locals/args completion
-            If token > 0 AndAlso token = _localsToken Then
+            ' Check if this is a locals/args completion (synchronized with RequestLocals)
+            Dim isLocals = False, isArgs = False
+            SyncLock _localsLock
+                isLocals = (token > 0 AndAlso token = _localsToken)
+                isArgs = (token > 0 AndAlso token = _argsToken)
+            End SyncLock
+
+            If isLocals Then
                 SyncLock _localsLines
                     _localsCollected = True
                 End SyncLock
-                _localsToken = -1
+                SyncLock _localsLock
+                    _localsToken = -1
+                End SyncLock
                 ' If args already collected (or no args pending), fire event now
                 If _argsToken <= 0 OrElse _argsCollected Then
                     FireLocalsFromTextOutput()
                 End If
                 Return
-            ElseIf token > 0 AndAlso token = _argsToken Then
+            ElseIf isArgs Then
                 SyncLock _localsLines
                     _argsCollected = True
                 End SyncLock
-                _argsToken = -1
+                SyncLock _localsLock
+                    _argsToken = -1
+                End SyncLock
                 FireLocalsFromTextOutput()
                 Return
             End If
@@ -925,7 +939,7 @@ Public Class GDBDebugger
     End Function
 
     Private Sub FireOnUI(action As Action)
-        Try : _syncCtx.Post(Sub(s) action(), Nothing) : Catch : End Try
+        Try : _syncCtx.Post(Sub(s) action(), Nothing) : Catch ex As Exception : DiagnosticsLogger.LogError("GDBDebugger", "FireOnUI dispatch failed", ex) : End Try
     End Sub
 
     Private Sub CleanupProcess()
@@ -934,7 +948,7 @@ Public Class GDBDebugger
                 If Not _process.HasExited Then _process.Kill()
                 _process.Dispose() : _process = Nothing
             End If
-        Catch : End Try
+        Catch ex As Exception : DiagnosticsLogger.LogError("GDBDebugger", "CleanupProcess error", ex) : End Try
     End Sub
 
     Public Sub Dispose() Implements IDisposable.Dispose

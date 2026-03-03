@@ -80,8 +80,25 @@ Public Class W9DesignerCanvas
     Private _undoStack As New Stack(Of List(Of W9GadgetInstance))()
     Private _redoStack As New Stack(Of List(Of W9GadgetInstance))()
 
-    ' ---- Clipboard ----
-    Private _clipboard As W9GadgetInstance = Nothing
+    ' ---- Clipboard (multi-gadget) ----
+    Private _clipboard As List(Of W9GadgetInstance) = Nothing
+
+    ' ---- Lasso selection ----
+    Private _isLassoSelecting As Boolean = False
+    Private _lassoStart As Point
+    Private _lassoCurrent As Point
+
+    ' ---- Snap lines ----
+    Private _snapLines As New List(Of SnapLineInfo)()
+    Private _snapLinesEnabled As Boolean = True
+    Private Const SNAP_THRESHOLD As Integer = 6
+
+    Public Class SnapLineInfo
+        Public IsHorizontal As Boolean  ' True = horizontal line, False = vertical
+        Public Position As Integer      ' Y for horizontal, X for vertical
+        Public Start As Integer         ' Start of line extent
+        Public [End] As Integer         ' End of line extent
+    End Class
 
     ' =========================================================================
     ' Constructor
@@ -168,6 +185,15 @@ Public Class W9DesignerCanvas
         End Set
     End Property
 
+    Public Property SnapLinesEnabled As Boolean
+        Get
+            Return _snapLinesEnabled
+        End Get
+        Set(value As Boolean)
+            _snapLinesEnabled = value
+        End Set
+    End Property
+
     ''' <summary>Set the gadget type to draw next (from toolbox click).</summary>
     Public Sub SetPendingGadgetType(gt As W9GadgetType)
         _pendingGadgetType = gt
@@ -233,6 +259,34 @@ Public Class W9DesignerCanvas
             End Using
         End If
 
+        ' Lasso selection rectangle
+        If _isLassoSelecting Then
+            Dim lassoRect = GetNormalizedRect(_lassoStart, _lassoCurrent)
+            Using lassoBrush As New SolidBrush(Color.FromArgb(40, 0, 120, 215))
+                g.FillRectangle(lassoBrush, lassoRect)
+            End Using
+            Using lassoPen As New Pen(Color.FromArgb(160, 0, 120, 215), 1)
+                lassoPen.DashStyle = DashStyle.Dash
+                g.DrawRectangle(lassoPen, lassoRect)
+            End Using
+        End If
+
+        ' Snap lines (alignment guidelines)
+        If _snapLines.Count > 0 Then
+            Using snapPen As New Pen(Color.FromArgb(255, 255, 0, 151), 1)
+                snapPen.DashStyle = DashStyle.Dash
+                For Each sl In _snapLines
+                    If sl.IsHorizontal Then
+                        g.DrawLine(snapPen, CInt(sl.Start * _zoom), CInt(sl.Position * _zoom),
+                                   CInt(sl.End * _zoom), CInt(sl.Position * _zoom))
+                    Else
+                        g.DrawLine(snapPen, CInt(sl.Position * _zoom), CInt(sl.Start * _zoom),
+                                   CInt(sl.Position * _zoom), CInt(sl.End * _zoom))
+                    End If
+                Next
+            End Using
+        End If
+
         ' Lock indicator on locked gadgets
         For Each gad In _formDesign.Gadgets
             If gad.IsLocked Then
@@ -270,12 +324,12 @@ Public Class W9DesignerCanvas
     End Sub
 
     Private Sub DrawGrid(g As Graphics, area As Rectangle)
-        Using gp As New Pen(_gridColor, 1)
-            Dim gs = CInt(_gridSize * _zoom)
-            If gs < 4 Then Return
+        Dim gs = CInt(_gridSize * _zoom)
+        If gs < 4 Then Return
+        Using gridBrush As New SolidBrush(_gridColor)
             For x = area.X To area.X + area.Width Step gs
                 For y = area.Y To area.Y + area.Height Step gs
-                    g.FillRectangle(New SolidBrush(_gridColor), x, y, 1, 1)
+                    g.FillRectangle(gridBrush, x, y, 1, 1)
                 Next
             Next
         End Using
@@ -567,10 +621,12 @@ Public Class W9DesignerCanvas
 
         ' 8 handles
         Dim handleRects = GetHandleRects(r)
-        For Each hr In handleRects
-            g.FillRectangle(New SolidBrush(_handleColor), hr)
-            g.DrawRectangle(New Pen(_handleBorderColor, 1), hr)
-        Next
+        Using hBrush As New SolidBrush(_handleColor), hPen As New Pen(_handleBorderColor, 1)
+            For Each hr In handleRects
+                g.FillRectangle(hBrush, hr)
+                g.DrawRectangle(hPen, hr)
+            Next
+        End Using
     End Sub
 
     Private Function GetHandleRects(r As Rectangle) As Rectangle()
@@ -644,9 +700,15 @@ Public Class W9DesignerCanvas
                 PushUndo()
             End If
         Else
-            ' Click on empty form surface
-            SelectedGadget = Nothing
-            _multiSelection.Clear()
+            ' Click on empty form surface — start lasso selection
+            If Not (Control.ModifierKeys And Keys.Control) = Keys.Control Then
+                _formDesign.ClearSelection()
+                _multiSelection.Clear()
+                SelectedGadget = Nothing
+            End If
+            _isLassoSelecting = True
+            _lassoStart = e.Location
+            _lassoCurrent = e.Location
             RaiseEvent FormSurfaceClicked()
             Invalidate()
         End If
@@ -657,6 +719,13 @@ Public Class W9DesignerCanvas
 
         If _isDrawing Then
             _drawCurrentPoint = e.Location
+            Invalidate()
+            Return
+        End If
+
+        ' Lasso selection tracking
+        If _isLassoSelecting Then
+            _lassoCurrent = e.Location
             Invalidate()
             Return
         End If
@@ -676,6 +745,12 @@ Public Class W9DesignerCanvas
                 sel.X = Math.Max(0, sel.X)
                 sel.Y = Math.Max(0, sel.Y)
             Next
+
+            ' Calculate snap lines during drag
+            _snapLines.Clear()
+            If _snapLinesEnabled AndAlso _multiSelection.Count = 1 Then
+                CalculateSnapLines(_selectedGadget)
+            End If
 
             Invalidate()
             RaiseEvent GadgetMoved(_selectedGadget)
@@ -705,6 +780,32 @@ Public Class W9DesignerCanvas
     Protected Overrides Sub OnMouseUp(e As MouseEventArgs)
         MyBase.OnMouseUp(e)
         Me.Capture = False
+
+        ' Finalize lasso selection
+        If _isLassoSelecting Then
+            _isLassoSelecting = False
+            Dim lassoRect = GetNormalizedRect(_lassoStart, _lassoCurrent)
+            ' Only select if user actually dragged (not just a click)
+            If lassoRect.Width > 4 OrElse lassoRect.Height > 4 Then
+                Dim canvasRect = ScreenToCanvasRect(lassoRect)
+                For Each gad In _formDesign.Gadgets
+                    Dim gadRect As New Rectangle(gad.X, gad.Y, gad.W, gad.H)
+                    If gadRect.IntersectsWith(canvasRect) Then
+                        gad.IsSelected = True
+                        If Not _multiSelection.Contains(gad) Then _multiSelection.Add(gad)
+                    End If
+                Next
+                If _multiSelection.Count > 0 Then
+                    _selectedGadget = _multiSelection.Last()
+                    RaiseEvent GadgetSelected(_selectedGadget)
+                End If
+            End If
+            Invalidate()
+            Return
+        End If
+
+        ' Clear snap lines on release
+        _snapLines.Clear()
 
         If _isDrawing AndAlso _pendingGadgetType.HasValue Then
             _isDrawing = False
@@ -756,12 +857,132 @@ Public Class W9DesignerCanvas
     End Sub
 
     ' =========================================================================
+    ' Drag-and-drop from toolbox
+    ' =========================================================================
+    Protected Overrides Sub OnDragEnter(e As DragEventArgs)
+        If e.Data.GetDataPresent(GetType(W9GadgetType)) Then
+            e.Effect = DragDropEffects.Copy
+        Else
+            e.Effect = DragDropEffects.None
+        End If
+        MyBase.OnDragEnter(e)
+    End Sub
+
+    Protected Overrides Sub OnDragOver(e As DragEventArgs)
+        If e.Data.GetDataPresent(GetType(W9GadgetType)) Then
+            e.Effect = DragDropEffects.Copy
+            Me.Cursor = Cursors.Cross
+        End If
+        MyBase.OnDragOver(e)
+    End Sub
+
+    Protected Overrides Sub OnDragDrop(e As DragEventArgs)
+        If e.Data.GetDataPresent(GetType(W9GadgetType)) Then
+            Dim gt = DirectCast(e.Data.GetData(GetType(W9GadgetType)), W9GadgetType)
+            Dim clientPt = Me.PointToClient(New Point(e.X, e.Y))
+            Dim canvasPt = ScreenToCanvas(clientPt)
+            Dim tdef = W9GadgetRegistry.GetTypeDef(gt)
+            Dim dw = If(tdef IsNot Nothing, tdef.DefaultWidth, 100)
+            Dim dh = If(tdef IsNot Nothing, tdef.DefaultHeight, 30)
+            Dim rect As New Rectangle(canvasPt.X - dw \ 2, canvasPt.Y - dh \ 2, dw, dh)
+            If _snapToGrid Then
+                rect.X = SnapToGridValue(rect.X)
+                rect.Y = SnapToGridValue(rect.Y)
+            End If
+            rect.X = Math.Max(0, rect.X)
+            rect.Y = Math.Max(0, rect.Y)
+            AddGadgetFromToolbox(gt, rect)
+        End If
+        Me.Cursor = Cursors.Default
+        MyBase.OnDragDrop(e)
+    End Sub
+
+    ' =========================================================================
     ' Keyboard
     ' =========================================================================
     Protected Overrides Sub OnKeyDown(e As KeyEventArgs)
         MyBase.OnKeyDown(e)
 
+        ' Escape always works — cancel lasso, drawing, or selection
+        If e.KeyCode = Keys.Escape Then
+            If _isLassoSelecting Then
+                _isLassoSelecting = False
+                Invalidate()
+                e.Handled = True
+                Return
+            End If
+            ClearPendingGadgetType()
+            SelectedGadget = Nothing
+            _multiSelection.Clear()
+            Invalidate()
+            e.Handled = True
+            Return
+        End If
+
+        ' Tab / Shift+Tab: cycle through gadgets
+        If e.KeyCode = Keys.Tab AndAlso _formDesign.Gadgets.Count > 0 Then
+            Dim idx = If(_selectedGadget IsNot Nothing, _formDesign.Gadgets.IndexOf(_selectedGadget), -1)
+            If e.Shift Then
+                idx = If(idx <= 0, _formDesign.Gadgets.Count - 1, idx - 1)
+            Else
+                idx = If(idx >= _formDesign.Gadgets.Count - 1, 0, idx + 1)
+            End If
+            _multiSelection.Clear()
+            _multiSelection.Add(_formDesign.Gadgets(idx))
+            SelectedGadget = _formDesign.Gadgets(idx)
+            e.Handled = True
+            Return
+        End If
+
+        ' Home / End: select first/last gadget
+        If e.KeyCode = Keys.Home AndAlso _formDesign.Gadgets.Count > 0 Then
+            _multiSelection.Clear()
+            _multiSelection.Add(_formDesign.Gadgets(0))
+            SelectedGadget = _formDesign.Gadgets(0)
+            e.Handled = True
+            Return
+        End If
+        If e.KeyCode = Keys.End AndAlso _formDesign.Gadgets.Count > 0 Then
+            _multiSelection.Clear()
+            Dim last = _formDesign.Gadgets(_formDesign.Gadgets.Count - 1)
+            _multiSelection.Add(last)
+            SelectedGadget = last
+            e.Handled = True
+            Return
+        End If
+
         If _selectedGadget Is Nothing Then Return
+
+        ' Ctrl+Shift+Arrow: resize selected gadgets
+        If e.Control AndAlso e.Shift Then
+            Dim resizeStep = If(_snapToGrid, _gridSize, 1)
+            Select Case e.KeyCode
+                Case Keys.Right
+                    PushUndo()
+                    For Each sel In _multiSelection
+                        If Not sel.IsLocked Then sel.W += resizeStep
+                    Next
+                    Invalidate() : RaiseEvent DesignChanged() : e.Handled = True : Return
+                Case Keys.Left
+                    PushUndo()
+                    For Each sel In _multiSelection
+                        If Not sel.IsLocked Then sel.W = Math.Max(10, sel.W - resizeStep)
+                    Next
+                    Invalidate() : RaiseEvent DesignChanged() : e.Handled = True : Return
+                Case Keys.Down
+                    PushUndo()
+                    For Each sel In _multiSelection
+                        If Not sel.IsLocked Then sel.H += resizeStep
+                    Next
+                    Invalidate() : RaiseEvent DesignChanged() : e.Handled = True : Return
+                Case Keys.Up
+                    PushUndo()
+                    For Each sel In _multiSelection
+                        If Not sel.IsLocked Then sel.H = Math.Max(10, sel.H - resizeStep)
+                    Next
+                    Invalidate() : RaiseEvent DesignChanged() : e.Handled = True : Return
+            End Select
+        End If
 
         Select Case e.KeyCode
             Case Keys.Delete
@@ -807,17 +1028,10 @@ Public Class W9DesignerCanvas
                 Invalidate()
                 RaiseEvent DesignChanged()
                 e.Handled = True
-
-            Case Keys.Escape
-                ClearPendingGadgetType()
-                SelectedGadget = Nothing
-                _multiSelection.Clear()
-                Invalidate()
-                e.Handled = True
         End Select
 
         ' Ctrl+C / Ctrl+V / Ctrl+X / Ctrl+D / Ctrl+Z / Ctrl+Y / Ctrl+A
-        If e.Control Then
+        If e.Control AndAlso Not e.Shift Then
             Select Case e.KeyCode
                 Case Keys.C
                     CopySelected()
@@ -851,8 +1065,8 @@ Public Class W9DesignerCanvas
     End Sub
 
     Protected Overrides Function IsInputKey(keyData As Keys) As Boolean
-        Select Case keyData
-            Case Keys.Up, Keys.Down, Keys.Left, Keys.Right
+        Select Case keyData And Keys.KeyCode
+            Case Keys.Up, Keys.Down, Keys.Left, Keys.Right, Keys.Tab
                 Return True
             Case Else
                 Return MyBase.IsInputKey(keyData)
@@ -900,12 +1114,34 @@ Public Class W9DesignerCanvas
             .FontName = defaultFontName,
             .FontSize = defaultFontSize
         }
+
+        ' Check if placed inside a container (GroupBox, Container, PanelTab)
+        Dim container = FindContainerAt(New Point(gad.X + gad.W \ 2, gad.Y + gad.H \ 2), gad)
+        If container IsNot Nothing Then
+            gad.ParentContainerID = container.ID
+        End If
+
         _formDesign.Gadgets.Add(gad)
         SelectedGadget = gad
         RaiseEvent GadgetAdded(gad)
         RaiseEvent DesignChanged()
         Invalidate()
     End Sub
+
+    ''' <summary>Find a container gadget at the given point (for nesting).</summary>
+    Private Function FindContainerAt(pt As Point, Optional exclude As W9GadgetInstance = Nothing) As W9GadgetInstance
+        ' Search in reverse Z-order for containers
+        For i = _formDesign.Gadgets.Count - 1 To 0 Step -1
+            Dim g = _formDesign.Gadgets(i)
+            If g Is exclude Then Continue For
+            Dim tdef = W9GadgetRegistry.GetTypeDef(g.GadgetType)
+            If tdef IsNot Nothing AndAlso tdef.IsContainer Then
+                Dim containerRect As New Rectangle(g.X, g.Y, g.W, g.H)
+                If containerRect.Contains(pt) Then Return g
+            End If
+        Next
+        Return Nothing
+    End Function
 
     ''' <summary>Delete all selected gadgets.</summary>
     Public Sub DeleteSelectedGadgets()
@@ -939,8 +1175,14 @@ Public Class W9DesignerCanvas
         Dim snapshot = _formDesign.Gadgets.Select(Function(g) g.Clone()).ToList()
         _undoStack.Push(snapshot)
         _redoStack.Clear()
+        ' Trim stack — keep most recent 50 snapshots
         If _undoStack.Count > 50 Then
-            ' Trim stack
+            Dim items = _undoStack.ToArray()
+            _undoStack.Clear()
+            ' Re-push newest 50 (ToArray returns top-of-stack first)
+            For i = 49 To 0 Step -1
+                _undoStack.Push(items(i))
+            Next
         End If
     End Sub
 
@@ -971,6 +1213,89 @@ Public Class W9DesignerCanvas
     Private Function SnapToGridValue(v As Integer) As Integer
         Return CInt(Math.Round(v / _gridSize) * _gridSize)
     End Function
+
+    ''' <summary>
+    ''' Calculate snap lines for the dragged gadget against all other gadgets.
+    ''' Adjusts the gadget position when within SNAP_THRESHOLD pixels of alignment.
+    ''' </summary>
+    Private Sub CalculateSnapLines(gad As W9GadgetInstance)
+        _snapLines.Clear()
+        Dim bestDx As Integer? = Nothing
+        Dim bestDy As Integer? = Nothing
+
+        ' Edges and center of the dragged gadget
+        Dim gLeft = gad.X, gRight = gad.X + gad.W, gCenterX = gad.X + gad.W \ 2
+        Dim gTop = gad.Y, gBottom = gad.Y + gad.H, gCenterY = gad.Y + gad.H \ 2
+
+        For Each other In _formDesign.Gadgets
+            If other Is gad OrElse _multiSelection.Contains(other) Then Continue For
+
+            Dim oLeft = other.X, oRight = other.X + other.W, oCenterX = other.X + other.W \ 2
+            Dim oTop = other.Y, oBottom = other.Y + other.H, oCenterY = other.Y + other.H \ 2
+
+            ' Vertical snap lines (X alignment)
+            Dim vSnaps = {
+                (gLeft, oLeft), (gLeft, oRight), (gLeft, oCenterX),
+                (gRight, oLeft), (gRight, oRight), (gRight, oCenterX),
+                (gCenterX, oCenterX)
+            }
+            For Each pair In vSnaps
+                Dim diff = pair.Item2 - pair.Item1
+                If Math.Abs(diff) <= SNAP_THRESHOLD Then
+                    If Not bestDx.HasValue OrElse Math.Abs(diff) < Math.Abs(bestDx.Value) Then
+                        bestDx = diff
+                    End If
+                    Dim lineTop = Math.Min(gTop, oTop) - 5
+                    Dim lineBot = Math.Max(gBottom, oBottom) + 5
+                    _snapLines.Add(New SnapLineInfo With {
+                        .IsHorizontal = False, .Position = pair.Item2,
+                        .Start = lineTop, .End = lineBot
+                    })
+                End If
+            Next
+
+            ' Horizontal snap lines (Y alignment)
+            Dim hSnaps = {
+                (gTop, oTop), (gTop, oBottom), (gTop, oCenterY),
+                (gBottom, oTop), (gBottom, oBottom), (gBottom, oCenterY),
+                (gCenterY, oCenterY)
+            }
+            For Each pair In hSnaps
+                Dim diff = pair.Item2 - pair.Item1
+                If Math.Abs(diff) <= SNAP_THRESHOLD Then
+                    If Not bestDy.HasValue OrElse Math.Abs(diff) < Math.Abs(bestDy.Value) Then
+                        bestDy = diff
+                    End If
+                    Dim lineLeft = Math.Min(gLeft, oLeft) - 5
+                    Dim lineRight = Math.Max(gRight, oRight) + 5
+                    _snapLines.Add(New SnapLineInfo With {
+                        .IsHorizontal = True, .Position = pair.Item2,
+                        .Start = lineLeft, .End = lineRight
+                    })
+                End If
+            Next
+        Next
+
+        ' Apply the best snap offsets
+        If bestDx.HasValue Then gad.X += bestDx.Value
+        If bestDy.HasValue Then gad.Y += bestDy.Value
+
+        ' Remove snap lines that don't match the final position
+        If bestDx.HasValue Then
+            _snapLines.RemoveAll(Function(sl)
+                                     If sl.IsHorizontal Then Return False
+                                     Dim finalLeft = gad.X, finalRight = gad.X + gad.W, finalCX = gad.X + gad.W \ 2
+                                     Return sl.Position <> finalLeft AndAlso sl.Position <> finalRight AndAlso sl.Position <> finalCX
+                                 End Function)
+        End If
+        If bestDy.HasValue Then
+            _snapLines.RemoveAll(Function(sl)
+                                     If Not sl.IsHorizontal Then Return False
+                                     Dim finalTop = gad.Y, finalBottom = gad.Y + gad.H, finalCY = gad.Y + gad.H \ 2
+                                     Return sl.Position <> finalTop AndAlso sl.Position <> finalBottom AndAlso sl.Position <> finalCY
+                                 End Function)
+        End If
+    End Sub
 
     Private Function ScreenToCanvas(pt As Point) As Point
         Return New Point(CInt(pt.X / _zoom), CInt(pt.Y / _zoom))
@@ -1109,7 +1434,7 @@ Public Class W9DesignerCanvas
                                               Dim hasMulti = _multiSelection.Count > 1
                                               _contextMenu.Items("mnuCut").Enabled = hasSelection
                                               _contextMenu.Items("mnuCopy").Enabled = hasSelection
-                                              _contextMenu.Items("mnuPaste").Enabled = _clipboard IsNot Nothing
+                                              _contextMenu.Items("mnuPaste").Enabled = _clipboard IsNot Nothing AndAlso _clipboard.Count > 0
                                               _contextMenu.Items("mnuDuplicate").Enabled = hasSelection
                                               _contextMenu.Items("mnuDelete").Enabled = hasSelection
                                               _contextMenu.Items("mnuBringFront").Enabled = hasSelection
@@ -1128,44 +1453,68 @@ Public Class W9DesignerCanvas
     ' Copy / Cut / Paste / Duplicate
     ' =========================================================================
     Public Sub CopySelected()
-        If _selectedGadget IsNot Nothing Then
-            _clipboard = _selectedGadget.Clone()
+        If _multiSelection.Count > 0 Then
+            _clipboard = _multiSelection.Select(Function(g) g.Clone()).ToList()
+        ElseIf _selectedGadget IsNot Nothing Then
+            _clipboard = New List(Of W9GadgetInstance) From {_selectedGadget.Clone()}
         End If
     End Sub
 
     Public Sub CutSelected()
-        If _selectedGadget IsNot Nothing Then
-            _clipboard = _selectedGadget.Clone()
-            DeleteSelectedGadgets()
-        End If
+        CopySelected()
+        If _clipboard IsNot Nothing AndAlso _clipboard.Count > 0 Then DeleteSelectedGadgets()
     End Sub
 
     Public Sub PasteFromClipboard()
-        If _clipboard Is Nothing Then Return
+        If _clipboard Is Nothing OrElse _clipboard.Count = 0 Then Return
         PushUndo()
-        Dim pasted = _clipboard.Clone()
-        pasted.X += 20
-        pasted.Y += 20
-        pasted.ID = _formDesign.GetNextGadgetID()
-        pasted.EnumName = GetUniqueEnumName(pasted.GadgetType)
-        _formDesign.Gadgets.Add(pasted)
-        SelectedGadget = pasted
-        RaiseEvent GadgetAdded(pasted)
+        _multiSelection.Clear()
+        _formDesign.ClearSelection()
+        For Each src In _clipboard
+            Dim pasted = src.Clone()
+            pasted.X += 20
+            pasted.Y += 20
+            pasted.ID = _formDesign.GetNextGadgetID()
+            pasted.EnumName = GetUniqueEnumName(pasted.GadgetType)
+            pasted.IsSelected = True
+            _formDesign.Gadgets.Add(pasted)
+            _multiSelection.Add(pasted)
+            RaiseEvent GadgetAdded(pasted)
+        Next
+        If _multiSelection.Count > 0 Then
+            _selectedGadget = _multiSelection.Last()
+            RaiseEvent GadgetSelected(_selectedGadget)
+        End If
         RaiseEvent DesignChanged()
         Invalidate()
     End Sub
 
     Public Sub DuplicateSelected()
-        If _selectedGadget Is Nothing Then Return
+        Dim toDuplicate As List(Of W9GadgetInstance) = Nothing
+        If _multiSelection.Count > 0 Then
+            toDuplicate = _multiSelection.ToList()
+        ElseIf _selectedGadget IsNot Nothing Then
+            toDuplicate = New List(Of W9GadgetInstance) From {_selectedGadget}
+        End If
+        If toDuplicate Is Nothing OrElse toDuplicate.Count = 0 Then Return
         PushUndo()
-        Dim duped = _selectedGadget.Clone()
-        duped.X += _gridSize * 2
-        duped.Y += _gridSize * 2
-        duped.ID = _formDesign.GetNextGadgetID()
-        duped.EnumName = GetUniqueEnumName(duped.GadgetType)
-        _formDesign.Gadgets.Add(duped)
-        SelectedGadget = duped
-        RaiseEvent GadgetAdded(duped)
+        _multiSelection.Clear()
+        _formDesign.ClearSelection()
+        For Each src In toDuplicate
+            Dim duped = src.Clone()
+            duped.X += _gridSize * 2
+            duped.Y += _gridSize * 2
+            duped.ID = _formDesign.GetNextGadgetID()
+            duped.EnumName = GetUniqueEnumName(duped.GadgetType)
+            duped.IsSelected = True
+            _formDesign.Gadgets.Add(duped)
+            _multiSelection.Add(duped)
+            RaiseEvent GadgetAdded(duped)
+        Next
+        If _multiSelection.Count > 0 Then
+            _selectedGadget = _multiSelection.Last()
+            RaiseEvent GadgetSelected(_selectedGadget)
+        End If
         RaiseEvent DesignChanged()
         Invalidate()
     End Sub

@@ -1,17 +1,45 @@
-# FBEditor v5.1.0 — FreeBASIC IDE with Visual Form Designer
+# FBEditor v5.2.0 — FreeBASIC IDE with Visual Form Designer
 
 A production-grade Integrated Development Environment for [FreeBASIC](https://www.freebasic.net/), built with VB.NET and featuring a **Window9 Visual Form Designer** with multi-form support, integrated GDB debugger, AI coding assistant, code outline explorer, and a full-featured Scintilla-powered editor.
 
 ![.NET Framework 4.8](https://img.shields.io/badge/.NET_Framework-4.8-purple)
 ![Platform](https://img.shields.io/badge/Platform-Windows-blue)
-![Version](https://img.shields.io/badge/Version-5.1.0-green)
+![Version](https://img.shields.io/badge/Version-5.2.0-green)
 ![License](https://img.shields.io/badge/License-Permissive-orange)
+
+---
+
+## What's New in v5.2.0
+
+### Visual Designer Improvements
+- **Snap Lines** — Visual Studio-style alignment guidelines when dragging gadgets
+- **Rubber-Band Selection** — drag a rectangle on the canvas to select multiple gadgets
+- **Multi-Gadget Clipboard** — copy, cut, paste, and duplicate multiple gadgets at once
+- **Drag from Toolbox** — drag gadgets directly from the toolbox onto the canvas
+- **Form Size Presets** — quick-select common form sizes from the toolbar
+- **Enhanced Keyboard Shortcuts** — Tab/Shift+Tab cycling, Ctrl+Shift+Arrow resize, Home/End selection
+- **Property Validation** — input validation for EnumName, dimensions, and font size
+- **Container Nesting** — gadgets placed inside GroupBox/Container track their parent
+- **Anchoring Property** — TopLeft, TopRight, BottomLeft, BottomRight, All, etc.
+
+### IDE Features
+- **Find in Files** (Ctrl+Shift+F) — search across all files in a directory with regex support
+- **Go to Definition** (F12) — jump to Sub/Function/Type definitions from the editor
+- **Smart Auto-Indent** — automatic indent increase/decrease for FreeBASIC block keywords
+- **Persistent Watch Expressions** — debugger watch list saved across sessions
+- **Project Templates** — File > New from Template with Console, Window9, Dialog, Multi-Form, and Class templates
+
+### Bug Fixes & Stability
+- Fixed GDI resource leaks in designer canvas (brushes/pens created per paint without disposal)
+- Fixed GDB debugger race condition on locals/args token access
+- Added centralized DiagnosticsLogger replacing 15+ silent exception catches
+- Undo stack now properly trims to 50 entries
 
 ---
 
 ## What's New in v5.1.0
 
-### Multi-Form Support (NEW)
+### Multi-Form Support
 
 FBEditor v5.1.0 adds full multi-form project support to the Visual Form Designer. Design applications with a main window and multiple child/dialog forms — all within a single project, with unified code generation.
 
@@ -426,6 +454,20 @@ FBEditor/
 ---
 
 ## Version History
+
+### v5.2.0 (March 2026)
+- **NEW:** Snap lines, rubber-band selection, multi-gadget clipboard, toolbox drag-and-drop
+- **NEW:** Form size presets, enhanced keyboard shortcuts, property validation
+- **NEW:** Container nesting and anchoring properties for gadgets
+- **NEW:** Find in Files (Ctrl+Shift+F) with regex support
+- **NEW:** Go to Definition (F12) for Sub/Function/Type navigation
+- **NEW:** Smart auto-indent for FreeBASIC block keywords
+- **NEW:** Persistent watch expressions in debugger
+- **NEW:** Project templates (Console, Window9 Form, Dialog, Multi-Form, Class Module)
+- **FIX:** GDI resource leaks in designer canvas
+- **FIX:** GDB debugger race condition on variable inspection
+- **FIX:** Centralized logging replacing silent exception catches
+- **FIX:** Undo stack now properly trims to 50 entries
 
 ### v5.1.0 (February 2026)
 - **NEW:** Multi-form support — design main window + child/dialog forms in a single project

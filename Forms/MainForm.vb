@@ -90,13 +90,18 @@ Imports ScintillaNET
         Private _initialized As Boolean = False
         Private _findReplaceForm As FindReplaceForm = Nothing  ' BUG FIX: reuse form, prevent leak
 
-        ' ---- Visual Form Designer (v5.1.0) ----
+        ' ---- Visual Form Designer (v5.2.0) ----
         Private _designerPanel As FormDesignerPanel = Nothing
         Private _pnlEditorArea As Panel = Nothing     ' Holds scintilla + cboOpenFiles
         Private _isDesignView As Boolean = False
         Private _mnuViewDesigner As ToolStripMenuItem
         Private _btnDesignToggle As ToolStripButton
         Private _mnuProjectType As ToolStripMenuItem
+
+        ' ---- Find in Files ----
+        Private _findInFilesForm As FindInFilesForm = Nothing
+        Private tabPageFindResults As TabPage
+        Private lvFindResults As ListView
 
         ' ---- Debugger ----
         Private WithEvents _debugger As New GDBDebugger()
@@ -347,11 +352,27 @@ Imports ScintillaNET
             tabPageAIChat.Controls.Add(pnlAIActions)
             tabPageAIChat.Controls.Add(pnlAIInput)
 
+            ' Find Results tab
+            tabPageFindResults = New TabPage("Find Results")
+            lvFindResults = New ListView() With {
+                .Dock = DockStyle.Fill,
+                .View = View.Details,
+                .FullRowSelect = True,
+                .GridLines = True,
+                .Font = New Font("Consolas", 9)
+            }
+            lvFindResults.Columns.Add("File", 250)
+            lvFindResults.Columns.Add("Line", 50)
+            lvFindResults.Columns.Add("Text", 600)
+            AddHandler lvFindResults.DoubleClick, AddressOf OnFindResultDoubleClick
+            tabPageFindResults.Controls.Add(lvFindResults)
+
             tabOutput.TabPages.Add(tabPageOutput)
             tabOutput.TabPages.Add(tabPageDebugOutput)
             tabOutput.TabPages.Add(tabPageLocals)
             tabOutput.TabPages.Add(tabPageCallStack)
             tabOutput.TabPages.Add(tabPageAIChat)
+            tabOutput.TabPages.Add(tabPageFindResults)
         End Sub
 
 #Region "Menu Building"
@@ -367,6 +388,7 @@ Imports ScintillaNET
             ' ---- FILE ----
             Dim mnuFile = New ToolStripMenuItem("&File")
             AddMenu(mnuFile, "&New", Sub(s, e) DoNewFile(), Keys.Control Or Keys.N)
+            AddMenu(mnuFile, "New from &Template...", Sub(s, e) DoNewFromTemplate())
             AddMenu(mnuFile, "&Open...", Sub(s, e) DoOpenFile(), Keys.Control Or Keys.O)
             mnuFile.DropDownItems.Add(New ToolStripSeparator())
             AddMenu(mnuFile, "&Save", Sub(s, e) DoSaveFile(), Keys.Control Or Keys.S)
@@ -419,8 +441,10 @@ Imports ScintillaNET
             AddMenu(mnuSearch, "&Find...", Sub(s, e) ShowFindReplace(False), Keys.Control Or Keys.F)
             AddMenu(mnuSearch, "Find &Next", Sub(s, e) FindNext(), Keys.F3)
             AddMenu(mnuSearch, "&Replace...", Sub(s, e) ShowFindReplace(True), Keys.Control Or Keys.H)
+            AddMenu(mnuSearch, "Find in &Files...", Sub(s, e) ShowFindInFiles(), Keys.Control Or Keys.Shift Or Keys.F)
             mnuSearch.DropDownItems.Add(New ToolStripSeparator())
             AddMenu(mnuSearch, "&Go To Line...", Sub(s, e) GoToLine(), Keys.Control Or Keys.G)
+            AddMenu(mnuSearch, "Go To &Definition", Sub(s, e) GoToDefinition(), Keys.F12)
 
             ' ---- VIEW ----
             Dim mnuView = New ToolStripMenuItem("&View")
@@ -491,7 +515,7 @@ Imports ScintillaNET
                                              End Sub)
             mnuView.DropDownItems.Add(New ToolStripSeparator())
 
-            ' ---- Window9 Visual Designer (v5.1.0) ----
+            ' ---- Window9 Visual Designer (v5.2.0) ----
             _mnuViewDesigner = New ToolStripMenuItem("&Window9 Form Designer") With {.ShortcutKeys = Keys.F7}
             AddHandler _mnuViewDesigner.Click, Sub(s, e) ToggleDesignView()
             mnuView.DropDownItems.Add(_mnuViewDesigner)
@@ -508,7 +532,7 @@ Imports ScintillaNET
             AddMenu(mnuBuild, "&Syntax Check Only", Sub(s, e) DoSyntaxCheck())
             mnuBuild.DropDownItems.Add(New ToolStripSeparator())
 
-            ' Project Type submenu (v5.1.0)
+            ' Project Type submenu (v5.2.0)
             _mnuProjectType = New ToolStripMenuItem("&Project Type")
             Dim mnuProjConsole = New ToolStripMenuItem("&Console Application") With {.Checked = True, .Tag = ProjectType.ConsoleApp}
             Dim mnuProjGUI = New ToolStripMenuItem("&GUI Application (-s gui)") With {.Tag = ProjectType.GUIApp}
@@ -769,6 +793,26 @@ Imports ScintillaNET
             UpdateFileList()
             UpdateTreeView()
             SwitchToFile(_files.Count - 1)
+        End Sub
+
+        Private Sub DoNewFromTemplate()
+            Using dlg As New NewFromTemplateForm()
+                dlg.ApplyTheme(Settings.DarkTheme)
+                If dlg.ShowDialog(Me) = DialogResult.OK AndAlso dlg.SelectedTemplateIndex >= 0 Then
+                    Dim tmpl = ProjectTemplates.Templates(dlg.SelectedTemplateIndex)
+                    Dim fi As New OpenFileInfo() With {
+                        .FileName = tmpl.DefaultFileName,
+                        .IsNew = True,
+                        .Content = tmpl.Code,
+                        .FileEnc = Settings.DefaultEncoding
+                    }
+                    _files.Add(fi)
+                    UpdateFileList()
+                    UpdateTreeView()
+                    SwitchToFile(_files.Count - 1)
+                    scintilla.Text = tmpl.Code
+                End If
+            End Using
         End Sub
 
         Public Sub DoOpenFile()
@@ -1093,9 +1137,45 @@ Imports ScintillaNET
             If Settings.AutoIndent AndAlso e.Char = 10 Then
                 Dim curLine As Integer = scintilla.CurrentLine
                 If curLine > 0 Then
-                    Dim prevIndent As Integer = scintilla.Lines(curLine - 1).Indentation
-                    If prevIndent > 0 Then
-                        scintilla.Lines(curLine).Indentation = prevIndent
+                    Dim prevLine = scintilla.Lines(curLine - 1)
+                    Dim prevIndent As Integer = prevLine.Indentation
+                    Dim prevText = prevLine.Text.Trim().ToLowerInvariant()
+                    Dim tabWidth = scintilla.TabWidth
+
+                    ' Smart indent: increase indent after block-opening keywords
+                    Dim blockOpeners = {"sub ", "function ", "if ", "for ", "while ", "do", "select case",
+                                         "type ", "enum ", "scope", "with ", "constructor", "destructor",
+                                         "#if ", "#ifdef ", "#ifndef ", "property "}
+                    Dim shouldIncrease = False
+                    For Each opener In blockOpeners
+                        If prevText.StartsWith(opener) OrElse prevText = opener.TrimEnd() Then
+                            ' Don't increase for single-line If (contains Then + statement on same line)
+                            If opener = "if " AndAlso prevText.Contains(" then ") AndAlso Not prevText.EndsWith(" then") Then
+                                Continue For
+                            End If
+                            shouldIncrease = True
+                            Exit For
+                        End If
+                    Next
+
+                    ' Decrease indent on block-closing keywords
+                    Dim blockClosers = {"end sub", "end function", "end if", "next", "wend", "loop",
+                                         "end select", "end type", "end enum", "end scope", "end with",
+                                         "end constructor", "end destructor", "#endif", "#end if", "end property"}
+                    Dim shouldDecrease = False
+                    For Each closer In blockClosers
+                        If prevText = closer OrElse prevText.StartsWith(closer & " ") Then
+                            shouldDecrease = True
+                            Exit For
+                        End If
+                    Next
+
+                    Dim newIndent = prevIndent
+                    If shouldIncrease Then newIndent += tabWidth
+                    If shouldDecrease Then newIndent = Math.Max(0, newIndent - tabWidth)
+
+                    If newIndent > 0 Then
+                        scintilla.Lines(curLine).Indentation = newIndent
                         Dim linePos = scintilla.Lines(curLine).Position
                         Dim lineText = scintilla.Lines(curLine).Text
                         Dim indentChars = 0
@@ -1201,7 +1281,8 @@ Imports ScintillaNET
                 Dim sorted As New List(Of String)(all)
                 sorted.Sort(StringComparer.OrdinalIgnoreCase)
                 _autoCompleteList = String.Join(" ", sorted)
-            Catch
+            Catch ex As Exception
+                DiagnosticsLogger.LogError("MainForm", "RebuildAutoCompleteList failed", ex)
             End Try
         End Sub
 
@@ -1300,6 +1381,77 @@ Imports ScintillaNET
                     scintilla.GotoPosition(scintilla.Lines(lineNum).Position)
                     scintilla.ScrollCaret()
                 End If
+            End If
+        End Sub
+
+        ' =========================================================================
+        ' Find in Files
+        ' =========================================================================
+        Private Sub ShowFindInFiles()
+            If _findInFilesForm Is Nothing OrElse _findInFilesForm.IsDisposed Then
+                _findInFilesForm = New FindInFilesForm()
+                AddHandler _findInFilesForm.SearchStarted, Sub(searchText)
+                                                                lvFindResults.Items.Clear()
+                                                                tabOutput.SelectedTab = tabPageFindResults
+                                                            End Sub
+                AddHandler _findInFilesForm.ResultFound, Sub(filePath, lineNumber, lineText)
+                                                              Dim item As New ListViewItem(filePath)
+                                                              item.SubItems.Add(lineNumber.ToString())
+                                                              item.SubItems.Add(lineText)
+                                                              lvFindResults.Items.Add(item)
+                                                          End Sub
+                AddHandler _findInFilesForm.SearchCompleted, Sub(totalMatches, totalFiles)
+                                                                  lblStatus.Text = $"Find in Files: {totalMatches} match(es) in {totalFiles} file(s)"
+                                                              End Sub
+            End If
+            ' Set directory to current file's directory
+            If _activeFile >= 0 AndAlso Not String.IsNullOrEmpty(_files(_activeFile).FilePath) Then
+                _findInFilesForm.SetDirectory(Path.GetDirectoryName(_files(_activeFile).FilePath))
+            End If
+            _findInFilesForm.SetSearchText(scintilla.SelectedText)
+            _findInFilesForm.Show(Me)
+            _findInFilesForm.BringToFront()
+        End Sub
+
+        Private Sub OnFindResultDoubleClick(sender As Object, e As EventArgs)
+            If lvFindResults.SelectedItems.Count = 0 Then Return
+            Dim item = lvFindResults.SelectedItems(0)
+            Dim filePath = item.Text
+            Dim lineNumber = 0
+            Integer.TryParse(item.SubItems(1).Text, lineNumber)
+            ' Open the file and navigate to the line
+            OpenFileByPath(filePath)
+            If lineNumber > 0 AndAlso lineNumber <= scintilla.Lines.Count Then
+                scintilla.GotoPosition(scintilla.Lines(lineNumber - 1).Position)
+                scintilla.ScrollCaret()
+            End If
+        End Sub
+
+        ' =========================================================================
+        ' Go to Definition (F12)
+        ' =========================================================================
+        Private Sub GoToDefinition()
+            Dim pos = scintilla.CurrentPosition
+            Dim wordStart = scintilla.WordStartPosition(pos, True)
+            Dim wordEnd = scintilla.WordEndPosition(pos, True)
+            If wordStart >= wordEnd Then Return
+            Dim word = scintilla.GetTextRange(wordStart, wordEnd - wordStart)
+            If String.IsNullOrEmpty(word) Then Return
+
+            ' Search in code outline for matching definition
+            Dim items = CodeOutline.ParseOutline(scintilla.Text)
+            Dim match = items.Find(Function(item)
+                                        Return item.Name.Equals(word, StringComparison.OrdinalIgnoreCase)
+                                    End Function)
+            If match IsNot Nothing Then
+                Dim lineIdx = match.LineNumber - 1
+                If lineIdx >= 0 AndAlso lineIdx < scintilla.Lines.Count Then
+                    scintilla.GotoPosition(scintilla.Lines(lineIdx).Position)
+                    scintilla.ScrollCaret()
+                    lblStatus.Text = $"Navigated to {match.Name} (line {match.LineNumber})"
+                End If
+            Else
+                lblStatus.Text = $"Definition not found: {word}"
             End If
         End Sub
 
@@ -1528,6 +1680,9 @@ Imports ScintillaNET
                 lvi.SubItems.Add(If(_debugger.IsPaused, "(evaluating...)", "(not running)"))
                 lvi.SubItems.Add("")
                 lvWatch.Items.Add(lvi)
+                ' Persist watch expressions
+                If Not WatchExpressions.Contains(expr) Then WatchExpressions.Add(expr)
+                SaveSettings()
                 ' Request evaluation if debugger is paused
                 If _debugger.IsRunning AndAlso _debugger.IsPaused Then
                     _debugger.RefreshWatches()
@@ -1541,6 +1696,9 @@ Imports ScintillaNET
             Dim expr = item.Text
             _debugger.RemoveWatch(expr)
             lvWatch.Items.Remove(item)
+            ' Persist watch expressions
+            WatchExpressions.Remove(expr)
+            SaveSettings()
         End Sub
 
         Private Sub SetGDBPath()
@@ -1905,8 +2063,18 @@ Imports ScintillaNET
             Try
                 splitMain.SplitterDistance = 250
                 splitEditor.SplitterDistance = CInt(splitEditor.Height * 0.75)
-            Catch
+            Catch ex As Exception
+                DiagnosticsLogger.LogWarning("MainForm", $"Splitter layout adjustment failed: {ex.Message}")
             End Try
+
+            ' Restore persistent watch expressions
+            For Each expr In WatchExpressions
+                _debugger.AddWatch(expr)
+                Dim lvi As New ListViewItem(expr)
+                lvi.SubItems.Add("(not running)")
+                lvi.SubItems.Add("")
+                lvWatch.Items.Add(lvi)
+            Next
         End Sub
 
         ' ENHANCEMENT: Ctrl+Tab / Ctrl+Shift+Tab file switching
@@ -1966,7 +2134,7 @@ Imports ScintillaNET
         End Sub
 #End Region
 
-#Region "Window9 Visual Form Designer (v5.1.0)"
+#Region "Window9 Visual Form Designer (v5.2.0)"
 
         ''' <summary>Toggle between Code view and Design view (like VS F7).</summary>
         Private Sub ToggleDesignView()

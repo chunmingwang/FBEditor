@@ -143,12 +143,51 @@ Public Class W9PropertyPanel
     End Sub
 
     Private Sub OnPropertyValueChanged(sender As Object, e As PropertyValueChangedEventArgs)
+        ' Validate the changed value
+        Dim validationError = ValidatePropertyValue(e.ChangedItem.Label, e.ChangedItem.Value)
+        If validationError IsNot Nothing Then
+            MessageBox.Show(validationError, "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+        End If
+
         If _selectedGadget IsNot Nothing Then
             RaiseEvent PropertyChanged(_selectedGadget, e.ChangedItem.Label)
         Else
             RaiseEvent FormPropertyChanged(e.ChangedItem.Label)
         End If
     End Sub
+
+    Private Function ValidatePropertyValue(propName As String, value As Object) As String
+        Try
+            Select Case propName
+                Case "EnumName"
+                    Dim s = CStr(value)
+                    If String.IsNullOrWhiteSpace(s) Then Return "Enum name cannot be empty."
+                    If Not System.Text.RegularExpressions.Regex.IsMatch(s, "^[a-zA-Z_][a-zA-Z0-9_]*$") Then
+                        Return "Enum name must be a valid identifier (letters, digits, underscore; cannot start with digit)."
+                    End If
+                Case "W", "H"
+                    Dim v = CInt(value)
+                    If v < 10 Then Return "Size must be at least 10 pixels."
+                Case "X", "Y"
+                    Dim v = CInt(value)
+                    If v < 0 Then Return "Position cannot be negative."
+                Case "FontSize"
+                    Dim v = CInt(value)
+                    If v < 0 OrElse v > 72 Then Return "Font size must be between 0 and 72 (0 = system default)."
+                Case "MinValue", "MaxValue"
+                    ' Basic range check
+                    Dim v = CInt(value)
+                    If v < -100000 OrElse v > 100000 Then Return "Value seems out of reasonable range."
+                Case "FormWidth", "FormHeight"
+                    Dim v = CInt(value)
+                    If v < 100 Then Return "Form size must be at least 100 pixels."
+                    If v > 4096 Then Return "Form size exceeds 4096 pixels — this may be unintentional."
+            End Select
+        Catch
+            ' Value conversion failed — not a critical error for validation
+        End Try
+        Return Nothing
+    End Function
 
     ' =========================================================================
     ' Theming
@@ -273,6 +312,27 @@ Public Class GadgetPropertyWrapper
         Set(value As Integer)
             _g.H = Math.Max(10, value)
         End Set
+    End Property
+
+    <System.ComponentModel.Category("Layout"),
+     System.ComponentModel.Description("Anchor edges for resize behavior."),
+     System.ComponentModel.TypeConverter(GetType(AnchorTypeConverter))>
+    Public Property Anchor As String
+        Get
+            Return _g.Anchor
+        End Get
+        Set(value As String)
+            _g.Anchor = value
+        End Set
+    End Property
+
+    <System.ComponentModel.Category("Layout"),
+     System.ComponentModel.Description("ID of parent container (0 = on form)."),
+     System.ComponentModel.ReadOnly(True)>
+    Public ReadOnly Property ParentContainerID As Integer
+        Get
+            Return _g.ParentContainerID
+        End Get
     End Property
 
     <System.ComponentModel.Category("Appearance"),
@@ -897,5 +957,24 @@ Public Class FontNameConverter
 
         fonts.Sort()
         Return New System.ComponentModel.TypeConverter.StandardValuesCollection(fonts)
+    End Function
+End Class
+
+''' <summary>Dropdown converter for anchor property values.</summary>
+Public Class AnchorTypeConverter
+    Inherits System.ComponentModel.StringConverter
+
+    Public Overrides Function GetStandardValuesSupported(context As System.ComponentModel.ITypeDescriptorContext) As Boolean
+        Return True
+    End Function
+
+    Public Overrides Function GetStandardValuesExclusive(context As System.ComponentModel.ITypeDescriptorContext) As Boolean
+        Return True
+    End Function
+
+    Public Overrides Function GetStandardValues(context As System.ComponentModel.ITypeDescriptorContext) As System.ComponentModel.TypeConverter.StandardValuesCollection
+        Return New System.ComponentModel.TypeConverter.StandardValuesCollection(
+            New String() {"TopLeft", "TopRight", "BottomLeft", "BottomRight",
+                          "TopLeftRight", "LeftTopBottom", "RightTopBottom", "BottomLeftRight", "All"})
     End Function
 End Class

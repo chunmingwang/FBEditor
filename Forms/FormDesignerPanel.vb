@@ -197,6 +197,25 @@ Public Class FormDesignerPanel
         AddHandler btnSnap.CheckedChanged, Sub(s, e) _canvas.SnapToGrid = btnSnap.Checked
         ts.Items.Add(btnSnap)
 
+        ' Snap Lines toggle
+        Dim btnSnapLines = New ToolStripButton("Snap Lines") With {.ToolTipText = "Show alignment snap lines when dragging", .Checked = True, .CheckOnClick = True}
+        AddHandler btnSnapLines.CheckedChanged, Sub(s, e) _canvas.SnapLinesEnabled = btnSnapLines.Checked
+        ts.Items.Add(btnSnapLines)
+
+        ts.Items.Add(New ToolStripSeparator())
+
+        ' Form size presets
+        Dim btnFormSize = New ToolStripDropDownButton("Form Size") With {.ToolTipText = "Set form to a preset size"}
+        btnFormSize.DropDownItems.Add("640 x 480 (VGA)", Nothing, Sub(s, e) SetFormSize(640, 480))
+        btnFormSize.DropDownItems.Add("800 x 600 (SVGA)", Nothing, Sub(s, e) SetFormSize(800, 600))
+        btnFormSize.DropDownItems.Add("1024 x 768 (XGA)", Nothing, Sub(s, e) SetFormSize(1024, 768))
+        btnFormSize.DropDownItems.Add("1280 x 720 (HD)", Nothing, Sub(s, e) SetFormSize(1280, 720))
+        btnFormSize.DropDownItems.Add("1920 x 1080 (FHD)", Nothing, Sub(s, e) SetFormSize(1920, 1080))
+        btnFormSize.DropDownItems.Add(New ToolStripSeparator())
+        btnFormSize.DropDownItems.Add("400 x 300 (Small Dialog)", Nothing, Sub(s, e) SetFormSize(400, 300))
+        btnFormSize.DropDownItems.Add("500 x 400 (Medium Dialog)", Nothing, Sub(s, e) SetFormSize(500, 400))
+        ts.Items.Add(btnFormSize)
+
         ts.Items.Add(New ToolStripSeparator())
 
         ' Menu designer
@@ -634,6 +653,19 @@ Public Class FormDesignerPanel
     Private Sub MarkDirty()
         _isDirty = True
         RaiseEvent DesignDirtyChanged(True)
+    End Sub
+
+    Private Sub SetFormSize(w As Integer, h As Integer)
+        _formDesign.FormWidth = w
+        _formDesign.FormHeight = h
+        _formDesign.BaseWidth = w
+        _formDesign.BaseHeight = h
+        ' Resize the canvas to match
+        _canvas.Size = New Size(w + 40, h + 40)
+        _canvas.RefreshDesign()
+        _properties.RefreshProperties()
+        MarkDirty()
+        SetStatus($"Form size set to {w} x {h}")
     End Sub
 
     Private Sub SetStatus(text As String)

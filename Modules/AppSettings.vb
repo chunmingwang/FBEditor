@@ -98,7 +98,7 @@ Imports System.Text.RegularExpressions
     ''' </summary>
     Public Module AppGlobals
         Public Const APP_NAME As String = "FBEditor"
-        Public Const APP_VERSION As String = "5.1.0"
+        Public Const APP_VERSION As String = "5.2.0"
         Public Const APP_AUTHOR As String = "Ronen Blumberg"
         Public Const APP_COPYRIGHT As String = "Copyright © 2026 Ronen Blumberg"
         Public Const MAX_RECENT_FILES As Integer = 10
@@ -106,6 +106,7 @@ Imports System.Text.RegularExpressions
         Public Settings As New EditorSettings()
         Public Build As New BuildSettings()
         Public RecentFiles As New List(Of String)()
+        Public WatchExpressions As New List(Of String)()
         Public AppPath As String = ""
         Public SettingsPath As String = ""
         Public NewFileCounter As Integer = 0
@@ -181,6 +182,15 @@ Imports System.Text.RegularExpressions
                     If part.Length > 0 Then RecentFiles.Add(part)
                 Next
             End If
+
+            ' Watch expressions
+            WatchExpressions.Clear()
+            Dim watchStr As String = US.WatchExpressions
+            If watchStr IsNot Nothing AndAlso watchStr.Length > 0 Then
+                For Each part In watchStr.Split("|"c)
+                    If part.Length > 0 Then WatchExpressions.Add(part)
+                Next
+            End If
         End Sub
 
         Public Sub SaveSettings()
@@ -231,6 +241,12 @@ Imports System.Text.RegularExpressions
                 US.RecentFilesList = String.Join("|", RecentFiles.ToArray())
             Else
                 US.RecentFilesList = ""
+            End If
+
+            If WatchExpressions.Count > 0 Then
+                US.WatchExpressions = String.Join("|", WatchExpressions.ToArray())
+            Else
+                US.WatchExpressions = ""
             End If
 
             Try

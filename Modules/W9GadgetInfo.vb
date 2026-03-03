@@ -86,6 +86,13 @@ Public Class W9GadgetInstance
     Public IsSelected As Boolean = False
     Public IsLocked As Boolean = False
 
+    ' Container nesting: 0 = directly on form, >0 = ID of parent container gadget
+    Public ParentContainerID As Integer = 0
+
+    ' Anchor for resize behavior: "TopLeft" (default), "TopRight", "BottomLeft", "BottomRight",
+    ' "TopLeftRight", "LeftTopBottom", "RightTopBottom", "BottomLeftRight", "All"
+    Public Anchor As String = "TopLeft"
+
     ' Scrollbar / Trackbar / Spin specifics
     Public MinValue As Integer = 0
     Public MaxValue As Integer = 100
@@ -163,6 +170,7 @@ Public Class W9GadgetInstance
         c.OnDoubleClickEvent = OnDoubleClickEvent
         c.HasLines = HasLines : c.HasButtons = HasButtons
         c.HasCheckBoxes = HasCheckBoxes : c.FullRowSelect = FullRowSelect
+        c.ParentContainerID = ParentContainerID : c.Anchor = Anchor
         Return c
     End Function
 End Class

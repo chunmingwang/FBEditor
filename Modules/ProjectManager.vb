@@ -82,6 +82,7 @@ Public Module ProjectManager
             _isDirty = False
             Return True
         Catch ex As Exception
+            DiagnosticsLogger.LogError("ProjectManager", $"Failed to save project: {filePath}", ex)
             Return False
         End Try
     End Function
@@ -96,6 +97,7 @@ Public Module ProjectManager
             _isDirty = False
             Return True
         Catch ex As Exception
+            DiagnosticsLogger.LogError("ProjectManager", $"Failed to load project: {filePath}", ex)
             Return False
         End Try
     End Function
@@ -148,6 +150,7 @@ Public Module ProjectManager
             File.WriteAllText(filePath, json)
             Return True
         Catch ex As Exception
+            DiagnosticsLogger.LogError("ProjectManager", $"Failed to save form design: {filePath}", ex)
             Return False
         End Try
     End Function
@@ -159,6 +162,7 @@ Public Module ProjectManager
             Dim json = File.ReadAllText(filePath)
             Return JsonConvert.DeserializeObject(Of W9FormDesign)(json)
         Catch ex As Exception
+            DiagnosticsLogger.LogError("ProjectManager", $"Failed to load form design: {filePath}", ex)
             Return Nothing
         End Try
     End Function
@@ -170,6 +174,7 @@ Public Module ProjectManager
             File.WriteAllText(filePath, json)
             Return True
         Catch ex As Exception
+            DiagnosticsLogger.LogError("ProjectManager", $"Failed to save form project: {filePath}", ex)
             Return False
         End Try
     End Function
@@ -195,8 +200,9 @@ Public Module ProjectManager
                 If proj IsNot Nothing AndAlso proj.Forms IsNot Nothing AndAlso proj.Forms.Count > 0 Then
                     Return proj
                 End If
-            Catch
+            Catch ex As Exception
                 ' Not a project format — try single form
+                DiagnosticsLogger.LogInfo("ProjectManager", $"Not a project format, trying single form: {ex.Message}")
             End Try
 
             ' Fall back to single form (old format) → wrap in project
@@ -212,6 +218,7 @@ Public Module ProjectManager
 
             Return Nothing
         Catch ex As Exception
+            DiagnosticsLogger.LogError("ProjectManager", $"Failed to load form project: {filePath}", ex)
             Return Nothing
         End Try
     End Function
