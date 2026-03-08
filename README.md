@@ -1,11 +1,30 @@
-# FBEditor v5.2.0 — FreeBASIC IDE with Visual Form Designer
+# FBEditor v5.3.0 — FreeBASIC IDE with Visual Form Designer
 
 A production-grade Integrated Development Environment for [FreeBASIC](https://www.freebasic.net/), built with VB.NET and featuring a **Window9 Visual Form Designer** with multi-form support, integrated GDB debugger, AI coding assistant, code outline explorer, and a full-featured Scintilla-powered editor.
 
 ![.NET Framework 4.8](https://img.shields.io/badge/.NET_Framework-4.8-purple)
 ![Platform](https://img.shields.io/badge/Platform-Windows-blue)
-![Version](https://img.shields.io/badge/Version-5.2.0-green)
+![Version](https://img.shields.io/badge/Version-5.3.0-green)
 ![License](https://img.shields.io/badge/License-Permissive-orange)
+
+---
+
+## What's New in v5.3.0
+
+### Spell Checker
+- **Real-time spell checking** with red wavy underlines powered by NHunspell (Hunspell dictionaries)
+- Checks spelling in **comments**, **string literals**, and **text files** — code keywords and identifiers are ignored
+- **Right-click suggestions** — right-click a misspelled word to see correction suggestions
+- **Add to Dictionary** — add custom words to a personal dictionary (`%APPDATA%\FBEditor\custom.dic`)
+- **Ignore** option to dismiss individual spelling markers
+- Toggle on/off via **Tools > Spell Check** menu
+- Performance optimized: only visible lines are checked with 800ms debounce
+
+### File Association Support
+- **Open files from Explorer** — double-click `.bas`, `.bi`, or `.w9form` files to open them directly in FBEditor
+- **Command-line file arguments** — `FBEditor.exe "path\to\file.bas"` opens the file on startup
+- `.w9form` files automatically open in the **Visual Form Designer**
+- **Open dialog** now includes `.w9form` as a file filter option
 
 ---
 
@@ -187,6 +206,7 @@ FBEditor introduced a full WYSIWYG visual form designer for the [Window9](https:
 - **Zoom** in/out/reset
 - **Customizable editor font**
 - **Toggle options** — line numbers, word wrap, whitespace visibility, indentation guides
+- **Spell checker** — real-time spell checking in comments and strings with red wavy underlines, right-click suggestions, and custom dictionary
 - **Recent files** menu
 - **Drag & drop** — drop `.bas` / `.bi` files onto the editor to open them
 
@@ -272,7 +292,7 @@ Built-in AI coding assistant powered by Claude (Anthropic API):
 
 ### From Installer
 
-1. Download the latest `FBEditor_v5.1_Pro_Setup.exe` from [Releases](https://github.com/ronen-blumberg/FBEditor/releases)
+1. Download the latest `FBEditor_v5.3_Pro_Setup.exe` from [Releases](https://github.com/ronen-blumberg/FBEditor/releases)
 2. Run the installer — it will check for .NET Framework 4.8 and guide you through setup
 3. FBEditor installs to `C:\Program Files (x86)\FBEditor` by default
 4. Optional: associate `.bas`, `.bi`, and `.w9form` files with FBEditor during installation
@@ -287,6 +307,7 @@ Built-in AI coding assistant powered by Claude (Anthropic API):
 3. Ensure the following NuGet packages are installed:
    - `jacobslusser.ScintillaNET` (3.6.3)
    - `Newtonsoft.Json` (13.0.3)
+   - `NHunspell` (1.2.5554.16953)
 4. Build in Release mode (target: x86, .NET Framework 4.8)
 5. The output will be in `bin\x86\Release\net48\`
 
@@ -429,12 +450,16 @@ FBEditor/
 │   ├── ThemeManager.vb                 Dark/Light theme engine (358 lines)
 │   ├── AIChatManager.vb                Claude API integration (287 lines)
 │   ├── ProjectManager.vb               Project & multi-form save/load (219 lines)
-│   ├── AppSettings.vb                  Application-wide settings (380 lines)
-│   └── UserSettings.vb                 Per-user persistent settings (488 lines)
+│   ├── SpellChecker.vb                 NHunspell spell checking engine (224 lines)
+│   ├── AppSettings.vb                  Application-wide settings (396 lines)
+│   └── UserSettings.vb                 Per-user persistent settings (501 lines)
 ├── Resources/
 │   ├── FBEditor.ico                    Application icon
 │   ├── LICENSE.txt                     License file
-│   └── README.md                       This file
+│   ├── README.md                       This file
+│   └── Dictionaries/
+│       ├── en_US.aff                   Hunspell affix file (US English)
+│       └── en_US.dic                   Hunspell dictionary file (US English)
 └── Installer/
     └── FBEditor_Setup.iss              Inno Setup installer script
 ```
@@ -449,11 +474,21 @@ FBEditor/
 |---|---|---|---|
 | [ScintillaNET](https://github.com/jacobslusser/ScintillaNET) | 3.6.3 | MIT | Code editor component |
 | [Newtonsoft.Json](https://www.newtonsoft.com/json) | 13.0.3 | MIT | Settings & form design serialization |
+| [NHunspell](https://www.nuget.org/packages/NHunspell) | 1.2.5554 | LGPL/MPL | Spell checking engine (Hunspell wrapper) |
 | [Scintilla](https://www.scintilla.org/) | (bundled) | Scintilla License | Native text editing engine |
 
 ---
 
 ## Version History
+
+### v5.3.0 (March 2026)
+- **NEW:** Real-time spell checker with NHunspell — red wavy underlines in comments, strings, and text files
+- **NEW:** Right-click spelling suggestions, Add to Dictionary, and Ignore options
+- **NEW:** Custom dictionary support (`%APPDATA%\FBEditor\custom.dic`)
+- **NEW:** Spell Check toggle in Tools menu
+- **NEW:** File association support — open `.bas`, `.bi`, `.w9form` files from Explorer via command-line args
+- **NEW:** Open dialog now includes `.w9form` file filter
+- **NEW:** `.w9form` files open directly in the Visual Form Designer
 
 ### v5.2.0 (March 2026)
 - **NEW:** Snap lines, rubber-band selection, multi-gadget clipboard, toolbox drag-and-drop

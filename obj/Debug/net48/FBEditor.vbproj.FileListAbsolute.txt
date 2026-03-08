@@ -11,3 +11,9 @@ C:\VS2026-NET-CPP-PROJECTS\VB.NET\FBEditor\bin\Debug\net48\Newtonsoft.Json.dll
 C:\VS2026-NET-CPP-PROJECTS\VB.NET\FBEditor\obj\Debug\net48\FBEditor.vbproj.Up2Date
 C:\VS2026-NET-CPP-PROJECTS\VB.NET\FBEditor\obj\Debug\net48\FBEditor.exe
 C:\VS2026-NET-CPP-PROJECTS\VB.NET\FBEditor\obj\Debug\net48\FBEditor.pdb
+C:\VS2026-NET-CPP-PROJECTS\VB.NET\FBEditor\bin\Debug\net48\Resources\FBEditor.ico
+C:\VS2026-NET-CPP-PROJECTS\VB.NET\FBEditor\bin\Debug\net48\Resources\Dictionaries\en_US.aff
+C:\VS2026-NET-CPP-PROJECTS\VB.NET\FBEditor\bin\Debug\net48\Resources\Dictionaries\en_US.dic
+C:\VS2026-NET-CPP-PROJECTS\VB.NET\FBEditor\bin\Debug\net48\NHunspell.dll
+C:\VS2026-NET-CPP-PROJECTS\VB.NET\FBEditor\bin\Debug\net48\Hunspellx86.dll
+C:\VS2026-NET-CPP-PROJECTS\VB.NET\FBEditor\bin\Debug\net48\Hunspellx64.dll

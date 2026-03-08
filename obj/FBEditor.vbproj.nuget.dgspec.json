@@ -5,7 +5,7 @@
   },
   "projects": {
     "C:\\VS2026-NET-CPP-PROJECTS\\VB.NET\\FBEditor\\FBEditor.vbproj": {
-      "version": "5.2.0",
+      "version": "5.3.0",
       "restore": {
         "projectUniqueName": "C:\\VS2026-NET-CPP-PROJECTS\\VB.NET\\FBEditor\\FBEditor.vbproj",
         "projectName": "FBEditor",
@@ -46,6 +46,10 @@
         "net48": {
           "targetAlias": "net48",
           "dependencies": {
+            "NHunspell": {
+              "target": "Package",
+              "version": "[1.2.5554.16953, )"
+            },
             "Newtonsoft.Json": {
               "target": "Package",
               "version": "[13.0.3, )"

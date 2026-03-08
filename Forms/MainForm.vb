@@ -87,6 +87,9 @@ Imports ScintillaNET
         Private _baseAutoCompleteList As String = ""
         Private _acTimer As Timer
         Private _foldTimer As Timer
+        Private _spellTimer As Timer
+        Private WithEvents ctxEditor As ContextMenuStrip
+        Private _mnuSpellCheckEnable As ToolStripMenuItem
         Private _initialized As Boolean = False
         Private _findReplaceForm As FindReplaceForm = Nothing  ' BUG FIX: reuse form, prevent leak
 
@@ -115,8 +118,10 @@ Imports ScintillaNET
         ' ---- Recent files ----
         Private _recentMenuItems As New List(Of ToolStripMenuItem)()
         Private _mnuRecentParent As ToolStripMenuItem
+        Private _startupArgs As String() = Nothing
 
-        Public Sub New()
+        Public Sub New(Optional args As String() = Nothing)
+            _startupArgs = args
             InitializeApp()
             _baseAutoCompleteList = SyntaxConfig.GetAutoCompleteList()
             _autoCompleteList = _baseAutoCompleteList
@@ -133,14 +138,40 @@ Imports ScintillaNET
                                             If Settings.ShowFolding Then FoldingManager.UpdateFoldLevels(scintilla)
                                         End Sub
 
+            _spellTimer = New Timer() With {.Interval = 800, .Enabled = False}
+            AddHandler _spellTimer.Tick, Sub(s, ev)
+                                             _spellTimer.Stop()
+                                             If Settings.SpellCheckEnabled Then
+                                                 Dim fn = If(_activeFile >= 0 AndAlso _activeFile < _files.Count,
+                                                              _files(_activeFile).FileName, "")
+                                                 SpellChecker.CheckVisibleLines(scintilla, fn)
+                                             End If
+                                         End Sub
+
             InitializeComponent()
             ApplyCurrentTheme()
             SetupScintilla()
+            SpellChecker.Initialize(AppPath, SettingsPath)
+            If Not SpellChecker.IsReady Then
+                lblStatus.Text = SpellChecker.InitStatus
+            End If
+            BuildEditorContextMenu()
 
             If String.IsNullOrEmpty(Build.FBCPath) Then Build.FBCPath = FindFBCPath()
             If String.IsNullOrEmpty(Build.GDBPath) Then Build.GDBPath = GDBDebugger.FindGDBPath()
 
-            DoNewFile()
+            ' Open files from command-line args, or create a new untitled file
+            Dim openedFromArgs = False
+            If _startupArgs IsNot Nothing AndAlso _startupArgs.Length > 0 Then
+                For Each arg In _startupArgs
+                    If Not String.IsNullOrEmpty(arg) AndAlso IO.File.Exists(arg) Then
+                        OpenFileByPath(arg)
+                        openedFromArgs = True
+                    End If
+                Next
+            End If
+            If Not openedFromArgs Then DoNewFile()
+
             UpdateRecentFilesMenu()
             UpdateDebugUI()
             _initialized = True
@@ -594,6 +625,22 @@ Imports ScintillaNET
                                                                                End Sub)
             mnuEncoding.DropDownItems.AddRange(New ToolStripItem() {mnuEncANSI, mnuEncUTF8, mnuEncUTF8BOM, New ToolStripSeparator(), mnuEncDefaultANSI, mnuEncDefaultUTF8})
             mnuTools.DropDownItems.Add(mnuEncoding)
+            mnuTools.DropDownItems.Add(New ToolStripSeparator())
+            _mnuSpellCheckEnable = New ToolStripMenuItem("&Spell Check") With {
+                .Checked = Settings.SpellCheckEnabled,
+                .CheckOnClick = True
+            }
+            AddHandler _mnuSpellCheckEnable.CheckedChanged, Sub()
+                                                                Settings.SpellCheckEnabled = _mnuSpellCheckEnable.Checked
+                                                                If Settings.SpellCheckEnabled Then
+                                                                    Dim fn = If(_activeFile >= 0 AndAlso _activeFile < _files.Count,
+                                                                                 _files(_activeFile).FileName, "")
+                                                                    SpellChecker.CheckVisibleLines(scintilla, fn)
+                                                                Else
+                                                                    SpellChecker.ClearAllIndicators(scintilla)
+                                                                End If
+                                                            End Sub
+            mnuTools.DropDownItems.Add(_mnuSpellCheckEnable)
 
             ' ---- HELP ----
             Dim mnuHelp = New ToolStripMenuItem("&Help")
@@ -698,6 +745,10 @@ Imports ScintillaNET
             SetupMargins()
             ApplyEditorTheme()
             scintilla.Technology = Technology.DirectWrite
+            scintilla.BufferedDraw = False
+
+            ' ---- Spell Check Indicator ----
+            SpellChecker.SetupIndicator(scintilla)
 
             ' ---- Folding ----
             If Settings.ShowFolding Then
@@ -758,6 +809,9 @@ Imports ScintillaNET
             scintilla.Styles(Style.BraceBad).ForeColor = Color.Red
             scintilla.Styles(Style.BraceBad).BackColor = If(dark, Color.FromArgb(60, 30, 30), Color.FromArgb(255, 220, 220))
             scintilla.Styles(Style.BraceBad).Bold = True
+
+            ' Re-setup spelling indicator (StyleClearAll resets it)
+            SpellChecker.SetupIndicator(scintilla)
         End Sub
 #End Region
 
@@ -817,7 +871,7 @@ Imports ScintillaNET
 
         Public Sub DoOpenFile()
             Using dlg As New OpenFileDialog()
-                dlg.Filter = "FreeBASIC Files (*.bas;*.bi;*.rc)|*.bas;*.bi;*.rc|BASIC Files (*.bas)|*.bas|Include Files (*.bi)|*.bi|All Files (*.*)|*.*"
+                dlg.Filter = "FreeBASIC Files (*.bas;*.bi;*.rc)|*.bas;*.bi;*.rc|BASIC Files (*.bas)|*.bas|Include Files (*.bi)|*.bi|Form Designs (*.w9form)|*.w9form|All Files (*.*)|*.*"
                 dlg.Title = "Open File"
                 dlg.Multiselect = True    ' ENHANCEMENT: multi-file open
                 If dlg.ShowDialog() = DialogResult.OK Then
@@ -829,6 +883,22 @@ Imports ScintillaNET
         End Sub
 
         Public Sub OpenFileByPath(filePath As String)
+            ' Handle .w9form files — load into the form designer
+            If Path.GetExtension(filePath).Equals(".w9form", StringComparison.OrdinalIgnoreCase) Then
+                Dim loaded = ProjectManager.LoadFormProject(filePath)
+                If loaded IsNot Nothing AndAlso _designerPanel IsNot Nothing Then
+                    _designerPanel.LoadProject(loaded)
+                    If Not _isDesignView Then ToggleDesignView()
+                    lblStatus.Text = "Design loaded: " & filePath
+                    AddRecentFile(filePath)
+                    UpdateRecentFilesMenu()
+                Else
+                    MessageBox.Show("Failed to load form design file." & vbCrLf & filePath,
+                                    APP_NAME, MessageBoxButtons.OK, MessageBoxIcon.Error)
+                End If
+                Return
+            End If
+
             For i = 0 To _files.Count - 1
                 If _files(i).FilePath.Equals(filePath, StringComparison.OrdinalIgnoreCase) Then
                     SwitchToFile(i) : Return
@@ -956,6 +1026,18 @@ Imports ScintillaNET
             _switchingFile = True
             _activeFile = index
 
+            ' Switch lexer based on file type
+            Dim fn = _files(index).FileName
+            If SpellChecker.IsTextFile(fn) Then
+                scintilla.Lexer = Lexer.Null
+            Else
+                scintilla.Lexer = Lexer.FreeBasic
+                scintilla.SetKeywords(0, SyntaxConfig.FB_KEYWORDS)
+                scintilla.SetKeywords(1, SyntaxConfig.FB_TYPES)
+                scintilla.SetKeywords(2, SyntaxConfig.FB_PREPROCESSOR)
+                scintilla.SetKeywords(3, SyntaxConfig.FB_FUNCTIONS)
+            End If
+
             scintilla.Text = _files(index).Content
             scintilla.GotoPosition(_files(index).CursorPos)
             scintilla.FirstVisibleLine = _files(index).FirstVisibleLine
@@ -967,6 +1049,7 @@ Imports ScintillaNET
 
             UpdateFileList() : UpdateTreeView() : UpdateEncodingUI() : UpdateTitle() : UpdateOutline() : SetupMargins()
             If Settings.ShowFolding Then FoldingManager.UpdateFoldLevels(scintilla)
+            If Settings.SpellCheckEnabled Then _spellTimer.Stop() : _spellTimer.Start()
 
             ' Restore breakpoint markers for this file
             RestoreBreakpointMarkers()
@@ -1126,6 +1209,11 @@ Imports ScintillaNET
             If Not braceFound Then
                 scintilla.BraceHighlight(ScintillaNET.Scintilla.InvalidPosition, ScintillaNET.Scintilla.InvalidPosition)
             End If
+
+            ' Trigger spellcheck on scroll
+            If (e.Change And UpdateChange.VScroll) <> 0 AndAlso Settings.SpellCheckEnabled Then
+                _spellTimer.Stop() : _spellTimer.Start()
+            End If
         End Sub
 
         Private Shared Function IsBraceChar(c As Integer) As Boolean
@@ -1195,6 +1283,71 @@ Imports ScintillaNET
             End If
             _acTimer.Stop() : _acTimer.Start()
             If Settings.ShowFolding Then _foldTimer.Stop() : _foldTimer.Start()
+            If Settings.SpellCheckEnabled Then _spellTimer.Stop() : _spellTimer.Start()
+        End Sub
+
+        Private Sub Scintilla_MouseDown(sender As Object, e As MouseEventArgs) Handles scintilla.MouseDown
+            If e.Button = MouseButtons.Right Then
+                Dim pos = scintilla.CharPositionFromPoint(e.X, e.Y)
+                If pos >= 0 Then scintilla.GotoPosition(pos)
+            End If
+        End Sub
+
+        Private Sub BuildEditorContextMenu()
+            ctxEditor = New ContextMenuStrip()
+            AddHandler ctxEditor.Opening, AddressOf EditorContextMenu_Opening
+            scintilla.ContextMenuStrip = ctxEditor
+        End Sub
+
+        Private Sub EditorContextMenu_Opening(sender As Object, e As System.ComponentModel.CancelEventArgs)
+            ctxEditor.Items.Clear()
+
+            Dim pos = scintilla.CurrentPosition
+            Dim word = SpellChecker.GetMisspelledWordAt(scintilla, pos)
+
+            If Not String.IsNullOrEmpty(word) AndAlso Settings.SpellCheckEnabled Then
+                Dim suggestions = SpellChecker.GetSuggestions(word)
+                If suggestions.Count > 0 Then
+                    For i = 0 To Math.Min(suggestions.Count - 1, 7)
+                        Dim suggestion = suggestions(i)
+                        Dim item = ctxEditor.Items.Add(suggestion)
+                        item.Font = New Font(item.Font, FontStyle.Bold)
+                        AddHandler item.Click, Sub()
+                                                   Dim ws = scintilla.WordStartPosition(pos, True)
+                                                   Dim we = scintilla.WordEndPosition(pos, True)
+                                                   scintilla.TargetStart = ws
+                                                   scintilla.TargetEnd = we
+                                                   scintilla.ReplaceTarget(suggestion)
+                                               End Sub
+                    Next
+                Else
+                    ctxEditor.Items.Add("(no suggestions)").Enabled = False
+                End If
+                ctxEditor.Items.Add(New ToolStripSeparator())
+
+                Dim addItem = ctxEditor.Items.Add("Add """ & word & """ to Dictionary")
+                AddHandler addItem.Click, Sub()
+                                              SpellChecker.AddToCustomDictionary(word)
+                                              Dim fn = If(_activeFile >= 0 AndAlso _activeFile < _files.Count,
+                                                           _files(_activeFile).FileName, "")
+                                              SpellChecker.CheckVisibleLines(scintilla, fn)
+                                          End Sub
+
+                Dim ignoreItem = ctxEditor.Items.Add("Ignore")
+                AddHandler ignoreItem.Click, Sub()
+                                                 Dim ws = scintilla.WordStartPosition(pos, True)
+                                                 Dim we = scintilla.WordEndPosition(pos, True)
+                                                 scintilla.IndicatorCurrent = SpellChecker.INDICATOR_SPELLING
+                                                 scintilla.IndicatorClearRange(ws, we - ws)
+                                             End Sub
+                ctxEditor.Items.Add(New ToolStripSeparator())
+            End If
+
+            ctxEditor.Items.Add("Cut", Nothing, Sub() scintilla.Cut())
+            ctxEditor.Items.Add("Copy", Nothing, Sub() scintilla.Copy())
+            ctxEditor.Items.Add("Paste", Nothing, Sub() scintilla.Paste())
+            ctxEditor.Items.Add(New ToolStripSeparator())
+            ctxEditor.Items.Add("Select All", Nothing, Sub() scintilla.SelectAll())
         End Sub
 
         Private Sub Scintilla_MarginClick(sender As Object, e As MarginClickEventArgs) Handles scintilla.MarginClick
@@ -2053,7 +2206,8 @@ Imports ScintillaNET
                     End If
                 End If
             Next
-            SaveSettings() : _acTimer.Dispose() : _debugger.Dispose()
+            SaveSettings() : _acTimer.Dispose() : _foldTimer.Dispose() : _spellTimer.Dispose()
+            SpellChecker.Shutdown() : _debugger.Dispose()
             If _findReplaceForm IsNot Nothing Then _findReplaceForm.Dispose()
             MyBase.OnFormClosing(e)
         End Sub

@@ -6,9 +6,9 @@
     <RootNamespace>FBEditor</RootNamespace>
     <AssemblyName>FBEditor</AssemblyName>
     <UseWindowsForms>true</UseWindowsForms>
-    <Version>5.2.0</Version>
-    <FileVersion>5.2.0.0</FileVersion>
-    <AssemblyVersion>5.2.0.0</AssemblyVersion>
+    <Version>5.3.0</Version>
+    <FileVersion>5.3.0.0</FileVersion>
+    <AssemblyVersion>5.3.0.0</AssemblyVersion>
     <Product>FBEditor</Product>
     <Description>FreeBASIC IDE with GDB Debugger and Window9 Visual Form Designer</Description>
     <ApplicationIcon>Resources\FBEditor.ico</ApplicationIcon>
@@ -21,6 +21,7 @@
   <ItemGroup>
     <PackageReference Include="jacobslusser.ScintillaNET" Version="3.6.3" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="NHunspell" Version="1.2.5554.16953" />
   </ItemGroup>
 
   <ItemGroup>
@@ -29,6 +30,18 @@
 
   <ItemGroup>
     <Content Include="Resources\FBEditor.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Resources\Dictionaries\en_US.aff">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Resources\Dictionaries\en_US.dic">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Hunspellx86.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Hunspellx64.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

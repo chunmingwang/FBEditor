@@ -461,6 +461,19 @@ Public NotInheritable Class UserSettings
         End Set
     End Property
 
+    ' ===== Spell Check =====
+
+    <UserScopedSetting()>
+    <DefaultSettingValue("True")>
+    Public Property SpellCheckEnabled As Boolean
+        Get
+            Return CBool(Me("SpellCheckEnabled"))
+        End Get
+        Set(value As Boolean)
+            Me("SpellCheckEnabled") = value
+        End Set
+    End Property
+
     ' ===== Recent Files (stored as semicolon-delimited string) =====
 
     <UserScopedSetting()>

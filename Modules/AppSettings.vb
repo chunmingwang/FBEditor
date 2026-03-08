@@ -91,6 +91,7 @@ Imports System.Text.RegularExpressions
         Public ShowFolding As Boolean = True
         Public DefaultEncoding As FileEncoding = FileEncoding.UTF8
         Public DarkTheme As Boolean = False
+        Public SpellCheckEnabled As Boolean = True
     End Class
 
     ''' <summary>
@@ -98,7 +99,7 @@ Imports System.Text.RegularExpressions
     ''' </summary>
     Public Module AppGlobals
         Public Const APP_NAME As String = "FBEditor"
-        Public Const APP_VERSION As String = "5.2.0"
+        Public Const APP_VERSION As String = "5.3.0"
         Public Const APP_AUTHOR As String = "Ronen Blumberg"
         Public Const APP_COPYRIGHT As String = "Copyright © 2026 Ronen Blumberg"
         Public Const MAX_RECENT_FILES As Integer = 10
@@ -144,6 +145,7 @@ Imports System.Text.RegularExpressions
             Settings.ShowFolding = US.ShowFolding
             Settings.DefaultEncoding = CType(US.DefaultEncoding, FileEncoding)
             Settings.DarkTheme = US.DarkTheme
+            Settings.SpellCheckEnabled = US.SpellCheckEnabled
 
             ' Build settings
             Build.FBCPath = US.FBCPath
@@ -208,6 +210,7 @@ Imports System.Text.RegularExpressions
             US.ShowFolding = Settings.ShowFolding
             US.DefaultEncoding = CInt(Settings.DefaultEncoding)
             US.DarkTheme = Settings.DarkTheme
+            US.SpellCheckEnabled = Settings.SpellCheckEnabled
 
             US.FBCPath = Build.FBCPath
             US.FBC32Path = Build.FBC32Path
