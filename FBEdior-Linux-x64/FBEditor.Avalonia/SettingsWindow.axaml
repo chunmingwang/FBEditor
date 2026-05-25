@@ -29,6 +29,9 @@
                 <TextBlock Text="Editor font size" Foreground="#AAA" FontSize="12" />
                 <TextBox x:Name="FontSizeBox" Width="80" HorizontalAlignment="Left" />
 
+                <TextBlock Text="Extra fbc build arguments (appended to every compile)" Foreground="#AAA" FontSize="12" TextWrapping="Wrap" />
+                <TextBox x:Name="FbcArgs" Watermark="e.g.  -w all -O2 -mt" />
+
                 <CheckBox x:Name="SpellEnabled" Content="Enable spell check" Foreground="#CCC" />
 
                 <Separator />

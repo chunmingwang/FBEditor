@@ -22,6 +22,7 @@ public partial class SettingsWindow : Window
         FbcPath.Text = AppGlobals.Build.FBCPath;
         GdbPath.Text = gdbPath;
         FontSizeBox.Text = AppGlobals.Settings.EditorFontSize.ToString();
+        FbcArgs.Text = AppGlobals.Build.ExtraCompilerOpts;
         SpellEnabled.IsChecked = AppGlobals.Settings.SpellCheckEnabled;
         try { if (File.Exists(_apiKeyPath)) ApiKey.Text = File.ReadAllText(_apiKeyPath).Trim(); }
         catch { }
@@ -35,6 +36,7 @@ public partial class SettingsWindow : Window
     private void Save()
     {
         AppGlobals.Build.FBCPath = (FbcPath.Text ?? "").Trim();
+        AppGlobals.Build.ExtraCompilerOpts = (FbcArgs.Text ?? "").Trim();
         if (int.TryParse((FontSizeBox.Text ?? "").Trim(), out var fs) && fs >= 6 && fs <= 48)
             AppGlobals.Settings.EditorFontSize = fs;
         AppGlobals.Settings.SpellCheckEnabled = SpellEnabled.IsChecked == true;
