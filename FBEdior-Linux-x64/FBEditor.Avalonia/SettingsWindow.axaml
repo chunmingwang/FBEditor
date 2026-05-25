@@ -1,0 +1,43 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="FBEditor.Avalonia.SettingsWindow"
+        Width="560" Height="420"
+        Title="Settings">
+    <DockPanel>
+        <Menu DockPanel.Dock="Top">
+            <MenuItem Header="_File">
+                <MenuItem x:Name="MnuSaveSettings" Header="_Save" />
+                <MenuItem x:Name="MnuCloseSettings" Header="_Close" />
+            </MenuItem>
+        </Menu>
+
+        <Border DockPanel.Dock="Bottom" Padding="16,10">
+            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                <Button x:Name="BtnSave" Content="Save" Padding="20,4" />
+                <Button x:Name="BtnCancel" Content="Cancel" Padding="16,4" />
+            </StackPanel>
+        </Border>
+
+        <ScrollViewer>
+            <StackPanel Margin="20" Spacing="12">
+                <TextBlock Text="FreeBASIC compiler (fbc) path" Foreground="#AAA" FontSize="12" />
+                <TextBox x:Name="FbcPath" />
+
+                <TextBlock Text="GDB debugger path" Foreground="#AAA" FontSize="12" />
+                <TextBox x:Name="GdbPath" />
+
+                <TextBlock Text="Editor font size" Foreground="#AAA" FontSize="12" />
+                <TextBox x:Name="FontSizeBox" Width="80" HorizontalAlignment="Left" />
+
+                <CheckBox x:Name="SpellEnabled" Content="Enable spell check" Foreground="#CCC" />
+
+                <Separator />
+
+                <TextBlock Text="Anthropic API key (stored in ~/.config/FBEditor/api_key.txt)"
+                           Foreground="#AAA" FontSize="12" TextWrapping="Wrap" />
+                <TextBox x:Name="ApiKey" PasswordChar="•" />
+                <TextBlock x:Name="StatusLine" Foreground="#8CC" FontSize="12" />
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

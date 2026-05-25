@@ -1,0 +1,28 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="FBEditor.Avalonia.MenuEditorWindow"
+        Width="440" Height="520"
+        Title="Menu Designer">
+    <DockPanel Margin="12" LastChildFill="True">
+        <TextBlock DockPanel.Dock="Top" Text="MENU STRUCTURE" Foreground="#BBB"
+                   FontSize="11" FontWeight="Bold" />
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="4" Margin="0,8">
+            <Button x:Name="BtnAddMenu" Content="+ Menu" />
+            <Button x:Name="BtnAddItem" Content="+ Item" />
+            <Button x:Name="BtnAddSep" Content="+ Separator" />
+            <Button x:Name="BtnRemove" Content="Remove" />
+        </StackPanel>
+
+        <Border DockPanel.Dock="Bottom" Padding="0,10,0,0">
+            <StackPanel Spacing="6">
+                <TextBlock Text="Text" Foreground="#AAA" FontSize="11" />
+                <TextBox x:Name="ItemText" />
+                <TextBlock Text="Enum name (e.g. miExit)" Foreground="#AAA" FontSize="11" />
+                <TextBox x:Name="ItemEnum" />
+                <Button x:Name="BtnDone" Content="Done" HorizontalAlignment="Right" Padding="16,4" />
+            </StackPanel>
+        </Border>
+
+        <TreeView x:Name="MenuTree" />
+    </DockPanel>
+</Window>

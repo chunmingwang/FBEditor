@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Dependency policy for this project:
+         ALLOWED  : System.Drawing.Primitives (Color, Point, Rectangle, Size) - cross-platform.
+                    Newtonsoft.Json - cross-platform, preserves the existing .w9form format.
+         FORBIDDEN: System.Drawing.Common (Graphics, Bitmap, Font - GDI+, Windows-only),
+                    Avalonia, System.Windows.Forms. Core must stay UI-framework-agnostic. -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.*" />
+    <!-- Required so Encoding.GetEncoding(1252) works on .NET for ANSI/Windows-1252 files. -->
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="9.0.*" />
+    <!-- Spell-check engine (replaces the VB version's NHunspell). Pure managed, cross-platform. -->
+    <PackageReference Include="WeCantSpell.Hunspell" Version="*" />
+  </ItemGroup>
+
+</Project>

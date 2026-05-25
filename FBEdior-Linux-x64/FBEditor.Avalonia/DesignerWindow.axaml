@@ -1,0 +1,54 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="FBEditor.Avalonia.DesignerWindow"
+        Width="1080" Height="720"
+        Title="Window9 Form Designer">
+    <DockPanel>
+
+        <!-- Toolbar -->
+        <Border DockPanel.Dock="Top" Background="#2D2D30" Padding="8,5">
+            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <TextBlock Text="Title:" Foreground="#CCC" VerticalAlignment="Center" />
+                <TextBox x:Name="FormTitleBox" Width="200" />
+                <TextBlock Text="W:" Foreground="#CCC" VerticalAlignment="Center" />
+                <TextBox x:Name="FormWidthBox" Width="60" />
+                <TextBlock Text="H:" Foreground="#CCC" VerticalAlignment="Center" />
+                <TextBox x:Name="FormHeightBox" Width="60" />
+                <Button x:Name="BtnMenu" Content="☰ Menu…" />
+                <Button x:Name="BtnGenerate" Content="⚙ Generate Code → Editor" />
+                <TextBlock x:Name="DesignerStatus" Foreground="#8CC" VerticalAlignment="Center" />
+            </StackPanel>
+        </Border>
+
+        <!-- Toolbox | Canvas | Properties -->
+        <Grid ColumnDefinitions="180,*,240">
+
+            <DockPanel Grid.Column="0" Background="#252526">
+                <TextBlock DockPanel.Dock="Top" Text="TOOLBOX" Foreground="#BBB"
+                           FontSize="11" FontWeight="Bold" Margin="10,8" />
+                <TextBlock DockPanel.Dock="Bottom" Foreground="#777" FontSize="10"
+                           TextWrapping="Wrap" Margin="10,8"
+                           Text="Click a control to add it to the form. Drag to move. Click to select." />
+                <ListBox x:Name="Toolbox" Background="Transparent" Foreground="#D4D4D4" />
+            </DockPanel>
+
+            <ScrollViewer Grid.Column="1" Background="#3A3A3A"
+                          HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                <Border Margin="24" HorizontalAlignment="Center" VerticalAlignment="Center"
+                        BorderBrush="#888" BorderThickness="1" Background="#ECECEC">
+                    <Canvas x:Name="DesignCanvas" Background="#ECECEC" />
+                </Border>
+            </ScrollViewer>
+
+            <DockPanel Grid.Column="2" Background="#252526">
+                <TextBlock DockPanel.Dock="Top" Text="PROPERTIES" Foreground="#BBB"
+                           FontSize="11" FontWeight="Bold" Margin="10,8" />
+                <Button x:Name="BtnDelete" DockPanel.Dock="Bottom" Content="Delete gadget"
+                        Margin="10,8" HorizontalAlignment="Stretch" />
+                <ScrollViewer>
+                    <StackPanel x:Name="PropPanel" Margin="10,4" Spacing="6" />
+                </ScrollViewer>
+            </DockPanel>
+        </Grid>
+    </DockPanel>
+</Window>

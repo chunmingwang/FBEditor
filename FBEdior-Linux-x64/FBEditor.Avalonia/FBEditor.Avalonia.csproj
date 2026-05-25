@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- WinExe just suppresses a console window on Windows; on Linux it runs as a
+         normal GUI exe. This is the standard Avalonia template setting. -->
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Floating 11.3.* so restore grabs the latest 11.3 patch.
+         Once it restores in Rider, pin the exact version via the NuGet panel. -->
+    <PackageReference Include="Avalonia" Version="11.3.*" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.*" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.*" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.*" />
+    <!-- Code editor component (port of AvalonEdit). Tracks Avalonia 11.x. -->
+    <PackageReference Include="Avalonia.AvaloniaEdit" Version="11.*" />
+    <!-- Dev-time visual tree inspector (F12 at runtime). Debug builds only. -->
+    <PackageReference Include="Avalonia.Diagnostics" Version="11.3.*"
+                      Condition="'$(Configuration)' == 'Debug'" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FBEditor.Core\FBEditor.Core.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,154 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ae="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
+        x:Class="FBEditor.Avalonia.MainWindow"
+        Width="1100" Height="760"
+        Title="FBEditor">
+    <DockPanel>
+
+        <!-- Menu bar -->
+        <Menu DockPanel.Dock="Top">
+            <MenuItem Header="_File">
+                <MenuItem x:Name="MnuNew" Header="_New" InputGesture="Ctrl+N" />
+                <MenuItem x:Name="MnuOpen" Header="_Open..." InputGesture="Ctrl+O" />
+                <MenuItem x:Name="MnuRecent" Header="Open _Recent" />
+                <MenuItem x:Name="MnuSave" Header="_Save" InputGesture="Ctrl+S" />
+                <MenuItem x:Name="MnuSaveAs" Header="Save _As..." />
+                <Separator />
+                <MenuItem x:Name="MnuSettings" Header="Se_ttings..." />
+                <MenuItem x:Name="MnuExit" Header="E_xit" />
+            </MenuItem>
+            <MenuItem Header="_Build">
+                <MenuItem x:Name="MnuCompile" Header="_Compile" InputGesture="Ctrl+F5" />
+                <MenuItem x:Name="MnuCompileRun" Header="Compile and _Run" InputGesture="F6" />
+            </MenuItem>
+            <MenuItem Header="_Debug">
+                <MenuItem x:Name="MnuStart" Header="_Start / Continue" InputGesture="F5" />
+                <MenuItem x:Name="MnuStop" Header="Stop" InputGesture="Shift+F5" />
+                <Separator />
+                <MenuItem x:Name="MnuStepOver" Header="Step _Over" InputGesture="F10" />
+                <MenuItem x:Name="MnuStepInto" Header="Step _Into" InputGesture="F11" />
+                <MenuItem x:Name="MnuStepOut" Header="Step O_ut" InputGesture="Shift+F11" />
+                <Separator />
+                <MenuItem x:Name="MnuToggleBp" Header="Toggle _Breakpoint" InputGesture="F9" />
+            </MenuItem>
+            <MenuItem Header="_View">
+                <MenuItem x:Name="MnuRefreshOutline" Header="_Refresh Outline" InputGesture="F4" />
+                <MenuItem x:Name="MnuToggleChat" Header="Toggle AI _Chat" />
+                <MenuItem x:Name="MnuToggleSpell" Header="Toggle _Spell Check" />
+                <Separator />
+                <MenuItem x:Name="MnuZoomIn" Header="Zoom _In    (Ctrl +)" />
+                <MenuItem x:Name="MnuZoomOut" Header="Zoom _Out    (Ctrl -)" />
+                <MenuItem x:Name="MnuZoomReset" Header="_Reset Zoom    (Ctrl 0)" />
+            </MenuItem>
+            <MenuItem Header="F_orm">
+                <MenuItem x:Name="MnuDesigner" Header="Open Form _Designer..." />
+            </MenuItem>
+            <MenuItem Header="_Help">
+                <MenuItem x:Name="MnuAbout" Header="_About FBEditor" />
+            </MenuItem>
+        </Menu>
+
+        <!-- Debug toolbar -->
+        <Border DockPanel.Dock="Top" Background="#2D2D30" Padding="6,3">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+                <Button x:Name="BtnStart" Content="▶ Start" />
+                <Button x:Name="BtnContinue" Content="⏵ Continue" />
+                <Button x:Name="BtnPause" Content="⏸ Pause" />
+                <Button x:Name="BtnStop" Content="⏹ Stop" />
+                <Border Width="1" Background="#555" Margin="4,2" />
+                <Button x:Name="BtnStepOver" Content="⤼ Over" />
+                <Button x:Name="BtnStepInto" Content="⤷ Into" />
+                <Button x:Name="BtnStepOut" Content="⤴ Out" />
+                <Border Width="1" Background="#555" Margin="4,2" />
+                <Button x:Name="BtnToggleBp" Content="● Breakpoint" />
+            </StackPanel>
+        </Border>
+
+        <!-- Status bar -->
+        <Border DockPanel.Dock="Bottom" Background="#007ACC" Padding="8,3">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <TextBlock x:Name="StatusCaret" Grid.Column="0" Foreground="White" Text="Ln 1, Col 1" />
+                <TextBlock x:Name="StatusFile" Grid.Column="1" Foreground="White" Margin="16,0,0,0" Text="(untitled)" />
+                <TextBlock x:Name="StatusBuild" Grid.Column="2" Foreground="White" Text="Ready" />
+            </Grid>
+        </Border>
+
+        <!-- Main area: outline | (editor / panels) | AI chat -->
+        <Grid x:Name="MainGrid">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="240" />
+                <ColumnDefinition Width="4" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="4" />
+                <ColumnDefinition Width="340" />
+            </Grid.ColumnDefinitions>
+
+            <DockPanel Grid.Column="0" Background="#252526">
+                <TextBlock DockPanel.Dock="Top" Text="OUTLINE" Foreground="#BBBBBB"
+                           FontSize="11" FontWeight="Bold" Margin="10,8" />
+                <TreeView x:Name="OutlineTree" Background="Transparent" Foreground="#D4D4D4" />
+            </DockPanel>
+
+            <GridSplitter Grid.Column="1" Background="#333333" ResizeDirection="Columns" />
+
+            <Grid Grid.Column="2" RowDefinitions="*,4,210">
+                <TabControl x:Name="Tabs" Grid.Row="0" Background="#1E1E1E" />
+
+                <GridSplitter Grid.Row="1" Background="#333333" ResizeDirection="Rows" />
+
+                <TabControl x:Name="BottomTabs" Grid.Row="2" Background="#181818">
+                    <TabItem Header="Output">
+                        <TextBox x:Name="OutputBox" IsReadOnly="True" AcceptsReturn="True"
+                                 TextWrapping="NoWrap" BorderThickness="0"
+                                 Background="#181818" Foreground="#CCCCCC"
+                                 FontFamily="Cascadia Code,DejaVu Sans Mono,monospace" FontSize="12"
+                                 VerticalContentAlignment="Top" />
+                    </TabItem>
+                    <TabItem Header="Locals">
+                        <ListBox x:Name="LocalsList" Background="#181818" Foreground="#D4D4D4"
+                                 FontFamily="Cascadia Code,DejaVu Sans Mono,monospace" FontSize="12" />
+                    </TabItem>
+                    <TabItem Header="Call Stack">
+                        <ListBox x:Name="CallStackList" Background="#181818" Foreground="#D4D4D4"
+                                 FontFamily="Cascadia Code,DejaVu Sans Mono,monospace" FontSize="12" />
+                    </TabItem>
+                    <TabItem Header="Errors">
+                        <ListBox x:Name="ErrorsList" Background="#181818" Foreground="#E8A0A0"
+                                 FontFamily="Cascadia Code,DejaVu Sans Mono,monospace" FontSize="12" />
+                    </TabItem>
+                </TabControl>
+            </Grid>
+
+            <GridSplitter Grid.Column="3" x:Name="ChatSplitter" Background="#333333" ResizeDirection="Columns" />
+
+            <!-- AI chat panel -->
+            <DockPanel Grid.Column="4" x:Name="ChatPanel" Background="#1F1F22">
+                <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="10,8,8,4">
+                    <TextBlock Grid.Column="0" Text="AI ASSISTANT" Foreground="#BBB"
+                               FontSize="11" FontWeight="Bold" VerticalAlignment="Center" />
+                    <Button Grid.Column="1" x:Name="BtnChatClear" Content="Clear" Padding="8,2" />
+                </Grid>
+
+                <Border DockPanel.Dock="Bottom" Padding="8" Background="#26262A">
+                    <DockPanel>
+                        <CheckBox DockPanel.Dock="Top" x:Name="ChatInclude" Foreground="#CCC"
+                                  Content="Include current file" Margin="0,0,0,6" />
+                        <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto" Margin="0,6,0,0">
+                            <Button Grid.Column="0" x:Name="BtnInsertCode" Content="Insert code → editor"
+                                    HorizontalAlignment="Left" Padding="8,3" />
+                            <Button Grid.Column="1" x:Name="BtnSend" Content="Send" Padding="14,3" />
+                        </Grid>
+                        <TextBox x:Name="ChatInput" AcceptsReturn="True" TextWrapping="Wrap"
+                                 MinHeight="60" MaxHeight="140" Watermark="Ask about your FreeBASIC code…"
+                                 Background="#1E1E1E" Foreground="#E4E4E4" />
+                    </DockPanel>
+                </Border>
+
+                <ScrollViewer x:Name="ChatScroll" Padding="4">
+                    <StackPanel x:Name="ChatMessages" Spacing="2" />
+                </ScrollViewer>
+            </DockPanel>
+        </Grid>
+    </DockPanel>
+</Window>

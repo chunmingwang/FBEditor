@@ -1,0 +1,25 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="FBEditor.Avalonia.AboutWindow"
+        Width="420" Height="340"
+        CanResize="False"
+        Title="About FBEditor">
+    <DockPanel>
+        <Menu DockPanel.Dock="Top">
+            <MenuItem Header="_File">
+                <MenuItem x:Name="MnuClose" Header="_Close" />
+            </MenuItem>
+        </Menu>
+
+        <StackPanel Margin="24" Spacing="10" VerticalAlignment="Center">
+            <TextBlock x:Name="LblTitle" FontSize="22" FontWeight="Bold" />
+            <TextBlock x:Name="LblVersion" Foreground="#AAA" />
+            <Separator />
+            <TextBlock TextWrapping="Wrap"
+                       Text="A FreeBASIC IDE with a visual Window9 form designer, GDB debugging, code outline, AI assistant, and spell-check. Ported from VB.NET/WinForms to C# / Avalonia, running natively on Linux." />
+            <TextBlock x:Name="LblAuthor" Foreground="#AAA" />
+            <TextBlock x:Name="LblCopyright" Foreground="#888" FontSize="12" />
+            <Button x:Name="BtnOk" Content="OK" HorizontalAlignment="Right" Padding="20,4" />
+        </StackPanel>
+    </DockPanel>
+</Window>

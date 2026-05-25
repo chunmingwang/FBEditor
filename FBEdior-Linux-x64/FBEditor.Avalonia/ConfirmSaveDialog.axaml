@@ -1,0 +1,16 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="FBEditor.Avalonia.ConfirmSaveDialog"
+        Width="420" Height="160"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Title="Unsaved changes">
+    <StackPanel Margin="20" Spacing="18">
+        <TextBlock x:Name="LblMsg" TextWrapping="Wrap" FontSize="14" />
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <Button x:Name="BtnSave" Content="Save" Padding="16,5" />
+            <Button x:Name="BtnDont" Content="Don't Save" Padding="16,5" />
+            <Button x:Name="BtnCancel" Content="Cancel" Padding="16,5" />
+        </StackPanel>
+    </StackPanel>
+</Window>
