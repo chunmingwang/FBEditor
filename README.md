@@ -1,9 +1,12 @@
 # FBEditor v5.3.0 — FreeBASIC IDE with Visual Form Designer
 
-A production-grade Integrated Development Environment for [FreeBASIC](https://www.freebasic.net/), built with VB.NET and featuring a **Window9 Visual Form Designer** with multi-form support, integrated GDB debugger, AI coding assistant, code outline explorer, and a full-featured Scintilla-powered editor.
+A production-grade Integrated Development Environment for [FreeBASIC](https://www.freebasic.net/), featuring a **Window9 Visual Form Designer** with multi-form support, integrated GDB debugger, AI coding assistant, code outline explorer, and a full-featured code editor.
+
+FBEditor runs on **both Windows and Linux**. The Windows edition is built with VB.NET / WinForms (.NET Framework 4.8). The **Linux edition** is a cross-platform rebuild in C# / .NET 10 on the [Avalonia](https://avaloniaui.net/) UI framework, with the same feature set — see [Linux Edition](#linux-edition) below.
 
 ![.NET Framework 4.8](https://img.shields.io/badge/.NET_Framework-4.8-purple)
-![Platform](https://img.shields.io/badge/Platform-Windows-blue)
+![.NET 10](https://img.shields.io/badge/.NET-10-purple)
+![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-blue)
 ![Version](https://img.shields.io/badge/Version-5.3.0-green)
 ![License](https://img.shields.io/badge/License-Permissive-orange)
 
@@ -25,6 +28,24 @@ A production-grade Integrated Development Environment for [FreeBASIC](https://ww
 - **Command-line file arguments** — `FBEditor.exe "path\to\file.bas"` opens the file on startup
 - `.w9form` files automatically open in the **Visual Form Designer**
 - **Open dialog** now includes `.w9form` as a file filter option
+
+---
+
+## Linux Edition
+
+FBEditor v5.3.0 is available as a native **Linux** application — a full cross-platform rebuild of the IDE, not a compatibility shim. It was developed and tested on Devuan/Debian with GNOME on X11.
+
+**Architecture:** the engine (gadget model, code generator, project I/O, settings, build system, syntax + outline parsers, GDB front-end, AI client, and spell-checker) lives in a UI-agnostic **`FBEditor.Core`** C# library. The user interface is rebuilt on **Avalonia** (`FBEditor.Avalonia`), using **AvaloniaEdit** for the code editor and **WeCantSpell.Hunspell** for spell-checking. A small **`FBEditor.Cli`** project provides a headless test harness for the engine.
+
+**Feature parity:** the Linux edition carries the same core features — tabbed editor with FreeBASIC syntax highlighting, code outline tree, code folding, compile / compile-and-run, the integrated GDB debugger (breakpoints, stepping, locals, call stack), the Window9 visual form designer (drag-and-drop placement, resize handles, property grid, menu designer, code generation), the AI coding assistant, recent files, an About dialog, a Settings window, zoom in/out/reset, and a save-on-close prompt for unsaved files.
+
+**Linux-specific behavior:**
+- Syntax highlighting is automatically disabled for plain-text files (`.txt`, `.md`, `.log`, etc.), and spell-check covers the **whole document** for those files (versus comments and strings only in code).
+- Settings persist to `~/.config/FBEditor/settings.json`; the Anthropic API key is read from `~/.config/FBEditor/api_key.txt`.
+- Spell-check uses the system Hunspell dictionaries (`/usr/share/hunspell/en_US.*`, from the `hunspell-en-us` package) or dictionaries placed in `~/.config/FBEditor/dict/`.
+- The app drives the system `fbc`, `gdb`, and Hunspell — these are detected on the host, so they must be installed on the target machine for building, debugging, and spell-check respectively.
+
+**Distribution:** the Linux edition ships as a self-contained **AppImage** that bundles the .NET runtime, so it runs on any x86-64 Linux desktop without installing .NET. See [Installation → Linux](#linux) below.
 
 ---
 
@@ -279,6 +300,8 @@ Built-in AI coding assistant powered by Claude (Anthropic API):
 
 ## Requirements
 
+### Windows
+
 - **Windows 7 SP1** or later (32-bit or 64-bit)
 - **.NET Framework 4.8** — [Download](https://dotnet.microsoft.com/download/dotnet-framework/net48)
 - **FreeBASIC Compiler** — [Download](https://www.freebasic.net/wiki/CompilerInstalling)
@@ -286,18 +309,31 @@ Built-in AI coding assistant powered by Claude (Anthropic API):
 - **GDB** (for debugging) — included with FreeBASIC for Windows, or install separately via [MinGW](https://www.mingw-w64.org/)
 - **Anthropic API Key** (optional, for AI Chat) — [Get one here](https://console.anthropic.com/)
 
+### Linux
+
+- A modern x86-64 Linux desktop (developed and tested on Devuan/Debian with GNOME on X11)
+- **To run the AppImage:** `libfuse2` (Debian/Devuan: `sudo apt install libfuse2`). The AppImage bundles the .NET 10 runtime, so .NET need not be installed separately.
+- **To build from source:** the **.NET 10 SDK**
+- **FreeBASIC Compiler** (`fbc` on `PATH`) — for compiling and running
+- **GDB** (`gdb` on `PATH`) — for debugging
+- **Hunspell dictionaries** — `sudo apt install hunspell-en-us` (or drop `en_US.aff` / `en_US.dic` in `~/.config/FBEditor/dict/`) for spell-check
+- **Window9 Library** — for compiling Visual Form Designer output
+- **Anthropic API Key** (optional, for AI Chat)
+
 ---
 
 ## Installation
 
-### From Installer
+### Windows
+
+#### From Installer
 
 1. Download the latest `FBEditor_v5.3_Pro_Setup.exe` from [Releases](https://github.com/ronen-blumberg/FBEditor/releases)
 2. Run the installer — it will check for .NET Framework 4.8 and guide you through setup
 3. FBEditor installs to `C:\Program Files (x86)\FBEditor` by default
 4. Optional: associate `.bas`, `.bi`, and `.w9form` files with FBEditor during installation
 
-### From Source
+#### From Source
 
 1. Clone the repository:
    ```
@@ -311,13 +347,55 @@ Built-in AI coding assistant powered by Claude (Anthropic API):
 4. Build in Release mode (target: x86, .NET Framework 4.8)
 5. The output will be in `bin\x86\Release\net48\`
 
-### Building the Installer
+#### Building the Installer
 
 1. Install [Inno Setup](https://jrsoftware.org/isinfo.php) (6.x or later)
 2. Open `Installer\FBEditor_Setup.iss`
 3. Update the `BuildOutput` path at the top to point to your build output folder
 4. Compile with the Inno Setup Compiler
 5. The installer will be created in the `Installer\` directory
+
+### Linux
+
+#### From AppImage
+
+1. Download `FBEditor-x86_64.AppImage` from [Releases](https://github.com/ronen-blumberg/FBEditor/releases)
+2. Make it executable and run it:
+   ```bash
+   chmod +x FBEditor-x86_64.AppImage
+   ./FBEditor-x86_64.AppImage
+   ```
+   If it reports a FUSE error, install `libfuse2` (`sudo apt install libfuse2`) or run with `--appimage-extract-and-run`.
+3. (Optional) install a desktop launcher so it appears in your application menu:
+   ```bash
+   ./install-launcher.sh
+   ```
+
+#### From Source
+
+1. Clone the repository and enter the Linux project folder:
+   ```bash
+   git clone https://github.com/ronen-blumberg/FBEditor.git
+   ```
+2. Run from source with the .NET 10 SDK:
+   ```bash
+   dotnet run --project FBEditor.Avalonia
+   ```
+3. Or publish a self-contained build (no .NET install needed to run it):
+   ```bash
+   dotnet publish FBEditor.Avalonia -c Release -r linux-x64 --self-contained true
+   # output in: FBEditor.Avalonia/bin/Release/net10.0/linux-x64/publish/
+   ```
+   > Do **not** add `-p:PublishSingleFile=true` — single-file publishing prevents the native `libSkiaSharp.so` from loading. Keep the published files flat so the libraries sit next to the executable.
+
+#### Building the AppImage
+
+The included `build-appimage.sh` publishes the app, assembles an AppDir (with `AppRun`, a `.desktop` entry, and the icon), and packages it with `appimagetool`:
+
+```bash
+./build-appimage.sh
+./FBEditor-x86_64.AppImage
+```
 
 ---
 
@@ -353,8 +431,8 @@ Built-in AI coding assistant powered by Claude (Anthropic API):
 
 ### Setting Up GDB
 
-1. Go to `Debug → Set GDB Path...`
-2. Browse to your `gdb.exe` — typically located in the FreeBASIC `bin\win32` or `bin\win64` directory
+1. Go to `Debug → Set GDB Path...` (Windows) or set it in `File → Settings...` (Linux)
+2. Browse to your debugger: on Windows, `gdb.exe` — typically in the FreeBASIC `bin\win32` or `bin\win64` directory; on Linux, `/usr/bin/gdb` (install via your package manager if missing)
 3. Make sure your Build Options have **Debug Info** (`-g`) enabled
 
 ---
@@ -466,9 +544,13 @@ FBEditor/
 
 **Total: ~12,185 lines of VB.NET**
 
+> **Linux edition layout:** the cross-platform build lives in a separate solution of C# projects — `FBEditor.Core` (the UI-agnostic engine), `FBEditor.Avalonia` (the Avalonia UI), and `FBEditor.Cli` (a headless test harness) — plus `build-appimage.sh`, `install-launcher.sh`, and `fbeditor.png` for packaging.
+
 ---
 
 ## Dependencies
+
+### Windows (VB.NET)
 
 | Library | Version | License | Purpose |
 |---|---|---|---|
@@ -477,11 +559,21 @@ FBEditor/
 | [NHunspell](https://www.nuget.org/packages/NHunspell) | 1.2.5554 | LGPL/MPL | Spell checking engine (Hunspell wrapper) |
 | [Scintilla](https://www.scintilla.org/) | (bundled) | Scintilla License | Native text editing engine |
 
+### Linux (C# / .NET 10)
+
+| Library | License | Purpose |
+|---|---|---|
+| [Avalonia](https://avaloniaui.net/) | MIT | Cross-platform UI framework |
+| [AvaloniaEdit](https://github.com/AvaloniaUI/AvaloniaEdit) | MIT | Code editor component |
+| [WeCantSpell.Hunspell](https://github.com/aarondandy/WeCantSpell.Hunspell) | MIT | Spell checking engine (managed Hunspell) |
+| [Newtonsoft.Json](https://www.newtonsoft.com/json) | MIT | Settings & form design serialization |
+
 ---
 
 ## Version History
 
 ### v5.3.0 (March 2026)
+- **NEW:** Linux edition — full cross-platform rebuild in C# / .NET 10 on Avalonia, distributed as a self-contained AppImage
 - **NEW:** Real-time spell checker with NHunspell — red wavy underlines in comments, strings, and text files
 - **NEW:** Right-click spelling suggestions, Add to Dictionary, and Ignore options
 - **NEW:** Custom dictionary support (`%APPDATA%\FBEditor\custom.dic`)
