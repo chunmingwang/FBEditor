@@ -100,4 +100,9 @@ public static class SyntaxConfig
         sorted.Sort();
         return string.Join(" ", sorted);
     }
+
+    private static List<string>? _autoComplete;
+    /// <summary>Cached, sorted list of completion words (keywords, types, functions, preprocessor).</summary>
+    public static IReadOnlyList<string> AutoCompleteWords =>
+        _autoComplete ??= GetAutoCompleteList().Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
 }

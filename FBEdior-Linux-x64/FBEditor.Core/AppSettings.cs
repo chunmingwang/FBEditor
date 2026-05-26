@@ -103,7 +103,7 @@ public class EditorSettings
 public static class AppGlobals
 {
     public const string APP_NAME = "FBEditor";
-    public const string APP_VERSION = "5.3.0";
+    public const string APP_VERSION = "5.3.5";
     public const string APP_AUTHOR = "Ronen Blumberg";
     public const string APP_COPYRIGHT = "Copyright © 2026 Ronen Blumberg";
     public const int MAX_RECENT_FILES = 10;

@@ -11,9 +11,12 @@ using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using AvaloniaEdit;
+using AvaloniaEdit.CodeCompletion;
+using AvaloniaEdit.Document;
 using AvaloniaEdit.Folding;
 using AvaloniaEdit.Rendering;
 using FBEditor.Core;
+using System.ComponentModel;
 
 namespace FBEditor.Avalonia;
 
@@ -48,6 +51,7 @@ public partial class MainWindow : Window
     private readonly SpellChecker _spell = new();
     private bool _spellEnabled = true;
     private double _fontSize = 14;
+    private CompletionWindow? _completionWindow;
 
     // Most existing logic refers to "the editor" and "the current path"; route both
     // to the active tab so the bulk of the code is unchanged by multi-tab.
@@ -234,6 +238,14 @@ public partial class MainWindow : Window
         tab.DebugRenderer = new DebugLineRenderer { IsBreakpoint = line => LineHasBreakpoint(tab, line) };
         editor.TextArea.TextView.BackgroundRenderers.Add(tab.DebugRenderer);
         tab.Folding = FoldingManager.Install(editor.TextArea);
+
+        // Autocomplete: pop a completion list as the user types identifiers (code files only).
+        editor.TextArea.TextEntered += (_, e) => OnTextEntered(editor, tab, e);
+        // Right-click spelling suggestions.
+        editor.TextArea.RightClickMovesCaret = true;
+        var spellMenu = new ContextMenu();
+        spellMenu.Opening += (_, e) => BuildSpellMenu(editor, tab, spellMenu, e);
+        editor.ContextMenu = spellMenu;
 
         editor.Document.TextChanged += (_, _) =>
         {
@@ -761,6 +773,102 @@ public partial class MainWindow : Window
         if (string.IsNullOrEmpty(path)) return false;
         var ext = Path.GetExtension(path).ToLowerInvariant();
         return ext is ".txt" or ".text" or ".md" or ".markdown" or ".log" or ".nfo" or ".me" or ".readme";
+    }
+
+    // ---- Autocomplete ----
+
+    private static bool IsWordChar(char c) => char.IsLetterOrDigit(c) || c == '_';
+
+    private void OnTextEntered(TextEditor editor, DocumentTab tab, TextInputEventArgs e)
+    {
+        // Code files only; skip plain-text documents.
+        if (IsTextFile(tab.Path)) return;
+        if (string.IsNullOrEmpty(e.Text) || !char.IsLetter(e.Text[0])) return;
+
+        var doc = editor.Document;
+        int caret = editor.CaretOffset;
+        int start = caret;
+        while (start > 0 && IsWordChar(doc.GetCharAt(start - 1))) start--;
+        string prefix = doc.GetText(start, caret - start);
+        if (prefix.Length < 2) return; // wait until there's something to match
+
+        var matches = SyntaxConfig.AutoCompleteWords
+            .Where(w => w.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
+                        !w.Equals(prefix, StringComparison.OrdinalIgnoreCase))
+            .Take(60)
+            .ToList();
+        if (matches.Count == 0) { _completionWindow?.Close(); return; }
+
+        var cw = new CompletionWindow(editor.TextArea) { CloseAutomatically = true };
+        cw.StartOffset = start;
+        cw.EndOffset = caret;
+        foreach (var m in matches)
+            cw.CompletionList.CompletionData.Add(new FbCompletionData(m, "FreeBASIC keyword"));
+        cw.Closed += (_, _) => _completionWindow = null;
+        cw.Show();
+        _completionWindow = cw;
+    }
+
+    // ---- Right-click spelling suggestions ----
+
+    private void BuildSpellMenu(TextEditor editor, DocumentTab tab, ContextMenu menu, CancelEventArgs e)
+    {
+        menu.Items.Clear();
+        var doc = editor.Document;
+        int caret = editor.CaretOffset;
+
+        // Word boundaries around the caret (letters only — apostrophe starts a comment in FB).
+        int start = caret, end = caret;
+        while (start > 0 && char.IsLetter(doc.GetCharAt(start - 1))) start--;
+        while (end < doc.TextLength && char.IsLetter(doc.GetCharAt(end))) end++;
+        string word = end > start ? doc.GetText(start, end - start) : "";
+
+        bool offerSpelling = false;
+        if (_spellEnabled && _spell.Enabled && word.Length >= 3)
+        {
+            // Only where a squiggle would appear: whole document for text files,
+            // comments/strings only for code.
+            bool checkable = IsTextFile(tab.Path);
+            if (!checkable)
+            {
+                var line = doc.GetLineByOffset(start);
+                string lineText = doc.GetText(line);
+                int col = start - line.Offset;
+                checkable = SpellCheckRenderer.CheckableSpans(lineText).Any(s => col >= s.start && col < s.end);
+            }
+            try { offerSpelling = checkable && !_spell.Check(word); } catch { }
+        }
+
+        if (offerSpelling)
+        {
+            var suggestions = _spell.Suggest(word).Take(7).ToList();
+            if (suggestions.Count == 0)
+            {
+                menu.Items.Add(new MenuItem { Header = "(no suggestions)", IsEnabled = false });
+            }
+            else
+            {
+                foreach (var s in suggestions)
+                {
+                    var sug = s;
+                    var mi = new MenuItem { Header = sug };
+                    mi.Click += (_, _) => doc.Replace(start, end - start, sug);
+                    menu.Items.Add(mi);
+                }
+            }
+            menu.Items.Add(new Separator());
+        }
+
+        // Standard edit actions, always present.
+        var cut = new MenuItem { Header = "Cut" };
+        cut.Click += (_, _) => editor.Cut();
+        var copy = new MenuItem { Header = "Copy" };
+        copy.Click += (_, _) => editor.Copy();
+        var paste = new MenuItem { Header = "Paste" };
+        paste.Click += (_, _) => editor.Paste();
+        menu.Items.Add(cut);
+        menu.Items.Add(copy);
+        menu.Items.Add(paste);
     }
 
     private void UpdateFoldings()

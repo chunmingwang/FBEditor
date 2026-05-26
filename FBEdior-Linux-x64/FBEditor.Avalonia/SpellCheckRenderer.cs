@@ -85,7 +85,7 @@ public sealed class SpellCheckRenderer : IBackgroundRenderer
     }
 
     // Spans (start,end) within the line that are comment text or string interiors.
-    private static IEnumerable<(int start, int end)> CheckableSpans(string text)
+    internal static IEnumerable<(int start, int end)> CheckableSpans(string text)
     {
         var spans = new List<(int, int)>();
         int n = text.Length;
