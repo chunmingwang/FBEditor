@@ -15,6 +15,7 @@ using AvaloniaEdit.CodeCompletion;
 using AvaloniaEdit.Document;
 using AvaloniaEdit.Folding;
 using AvaloniaEdit.Rendering;
+using AvaloniaEdit.Search;
 using FBEditor.Core;
 using System.ComponentModel;
 
@@ -104,6 +105,7 @@ public partial class MainWindow : Window
         MnuZoomReset.Click += (_, _) => ZoomReset();
         // Help / Settings
         MnuAbout.Click += (_, _) => new AboutWindow().Show();
+        MnuShortcuts.Click += (_, _) => ShowShortcuts();
         MnuSettings.Click += (_, _) => OpenSettings();
         // AI chat
         BtnSend.Click += async (_, _) => await SendChat();
@@ -197,7 +199,11 @@ public partial class MainWindow : Window
         bool shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
         switch (e.Key)
         {
-            case Key.F5: if (shift) _debugger.StopDebugging(); else _ = StartOrContinue(); e.Handled = true; break;
+            case Key.F5:
+                if (ctrl) _ = Build(run: false);
+                else if (shift) _debugger.StopDebugging();
+                else _ = StartOrContinue();
+                e.Handled = true; break;
             case Key.F9: ToggleBreakpointAtCaret(); e.Handled = true; break;
             case Key.F10: _debugger.StepOver(); e.Handled = true; break;
             case Key.F11: if (shift) _debugger.StepOut(); else _debugger.StepInto(); e.Handled = true; break;
@@ -212,6 +218,11 @@ public partial class MainWindow : Window
             case Key.OemMinus when ctrl: Zoom(-1); e.Handled = true; break;
             case Key.Subtract when ctrl: Zoom(-1); e.Handled = true; break;
             case Key.D0 when ctrl: ZoomReset(); e.Handled = true; break;
+            case Key.F1: ShowShortcuts(); e.Handled = true; break;
+            case Key.OemQuestion when ctrl: ToggleComment(); e.Handled = true; break; // Ctrl+/
+            case Key.Tab when ctrl && !shift: CycleTab(+1); e.Handled = true; break;
+            case Key.Tab when ctrl && shift: CycleTab(-1); e.Handled = true; break;
+            case Key.F when ctrl: OpenSearchPanel(); e.Handled = true; break;
         }
     }
 
@@ -238,6 +249,8 @@ public partial class MainWindow : Window
         tab.DebugRenderer = new DebugLineRenderer { IsBreakpoint = line => LineHasBreakpoint(tab, line) };
         editor.TextArea.TextView.BackgroundRenderers.Add(tab.DebugRenderer);
         tab.Folding = FoldingManager.Install(editor.TextArea);
+        // Ctrl+F find panel.
+        SearchPanel.Install(editor);
 
         // Autocomplete: pop a completion list as the user types identifiers (code files only).
         editor.TextArea.TextEntered += (_, e) => OnTextEntered(editor, tab, e);
@@ -767,6 +780,104 @@ public partial class MainWindow : Window
             onGdbPath: p => _gdbPath = p);
         win.Show();
     }
+
+    // ---- Tab + comment + find shortcuts ----
+
+    private void CycleTab(int direction)
+    {
+        if (_tabs.Count < 2 || _active == null) return;
+        int idx = _tabs.IndexOf(_active);
+        idx = (idx + direction + _tabs.Count) % _tabs.Count;
+        Tabs.SelectedItem = _tabs[idx].Item;
+    }
+
+    private void OpenSearchPanel()
+    {
+        if (_active == null) return;
+        // SearchPanel installed in AddTab; Ctrl+F is its default open key, but if the focus
+        // is on the menu/outline we still want to open it. Locate the panel and show it.
+        var panel = SearchPanel.Install(_active.Editor); // returns existing instance if already installed
+        panel.Open();
+        _active.Editor.Focus();
+    }
+
+    /// <summary>Toggle a leading apostrophe-comment on every non-blank line in the selection
+    /// (or on the caret line if there is no selection). Indentation is preserved.</summary>
+    private void ToggleComment()
+    {
+        if (_active == null) return;
+        var editor = _active.Editor;
+        var doc = editor.Document;
+        var sel = editor.TextArea.Selection;
+
+        int startLine, endLine;
+        if (sel.IsEmpty)
+        {
+            startLine = endLine = editor.TextArea.Caret.Line;
+        }
+        else
+        {
+            startLine = sel.StartPosition.Line;
+            endLine = sel.EndPosition.Line;
+            if (endLine < startLine) (startLine, endLine) = (endLine, startLine);
+        }
+
+        // Decide: if every non-blank line already starts with ', we un-comment; else we comment.
+        bool allCommented = true;
+        bool anyNonBlank = false;
+        for (int ln = startLine; ln <= endLine; ln++)
+        {
+            string text = doc.GetText(doc.GetLineByNumber(ln));
+            string trim = text.TrimStart();
+            if (trim.Length == 0) continue;
+            anyNonBlank = true;
+            if (!trim.StartsWith("'")) { allCommented = false; break; }
+        }
+        if (!anyNonBlank) return;
+
+        using (doc.RunUpdate())
+        {
+            if (allCommented)
+            {
+                for (int ln = startLine; ln <= endLine; ln++)
+                {
+                    var line = doc.GetLineByNumber(ln);
+                    string text = doc.GetText(line);
+                    int idx = 0;
+                    while (idx < text.Length && (text[idx] == ' ' || text[idx] == '\t')) idx++;
+                    if (idx < text.Length && text[idx] == '\'')
+                    {
+                        int rem = 1;
+                        if (idx + 1 < text.Length && text[idx + 1] == ' ') rem = 2; // also remove the space we inserted
+                        doc.Remove(line.Offset + idx, rem);
+                    }
+                }
+            }
+            else
+            {
+                // Insert at the minimum indentation column so the apostrophes line up.
+                int minIndent = int.MaxValue;
+                for (int ln = startLine; ln <= endLine; ln++)
+                {
+                    string text = doc.GetText(doc.GetLineByNumber(ln));
+                    if (text.TrimStart().Length == 0) continue;
+                    int indent = 0;
+                    while (indent < text.Length && (text[indent] == ' ' || text[indent] == '\t')) indent++;
+                    if (indent < minIndent) minIndent = indent;
+                }
+                if (minIndent == int.MaxValue) minIndent = 0;
+                for (int ln = startLine; ln <= endLine; ln++)
+                {
+                    var line = doc.GetLineByNumber(ln);
+                    string text = doc.GetText(line);
+                    if (text.TrimStart().Length == 0) continue;
+                    doc.Insert(line.Offset + minIndent, "' ");
+                }
+            }
+        }
+    }
+
+    private void ShowShortcuts() => new ShortcutsWindow().Show();
 
     private static bool IsTextFile(string? path)
     {

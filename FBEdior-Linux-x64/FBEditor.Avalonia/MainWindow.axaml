@@ -45,6 +45,7 @@
                 <MenuItem x:Name="MnuDesigner" Header="Open Form _Designer..." />
             </MenuItem>
             <MenuItem Header="_Help">
+                <MenuItem x:Name="MnuShortcuts" Header="_Keyboard Shortcuts" InputGesture="F1" />
                 <MenuItem x:Name="MnuAbout" Header="_About FBEditor" />
             </MenuItem>
         </Menu>

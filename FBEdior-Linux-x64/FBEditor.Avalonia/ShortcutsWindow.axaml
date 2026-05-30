@@ -1,0 +1,19 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="FBEditor.Avalonia.ShortcutsWindow"
+        Width="540" Height="600"
+        Title="Keyboard Shortcuts">
+    <DockPanel>
+        <Menu DockPanel.Dock="Top">
+            <MenuItem Header="_File">
+                <MenuItem x:Name="MnuClose" Header="_Close" />
+            </MenuItem>
+        </Menu>
+        <Border DockPanel.Dock="Bottom" Padding="16,10">
+            <Button x:Name="BtnOk" Content="OK" Padding="20,4" HorizontalAlignment="Right" />
+        </Border>
+        <ScrollViewer>
+            <StackPanel x:Name="Body" Margin="20" Spacing="14" />
+        </ScrollViewer>
+    </DockPanel>
+</Window>
